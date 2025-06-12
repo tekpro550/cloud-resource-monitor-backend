@@ -1,0 +1,5 @@
+azure-functions
+requests
+boto3  # For AWS
+azure-mgmt-resource  # For Azure resources
+python-dotenv  # To load environment variables for security
