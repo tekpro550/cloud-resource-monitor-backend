@@ -1,5 +1,11 @@
-azure-functions
-requests
-boto3  # For AWS
-azure-mgmt-resource  # For Azure resources
-python-dotenv  # To load environment variables for security
+azure-functions==1.17.0
+requests==2.31.0
+boto3==1.34.34
+azure-mgmt-resource==23.0.1
+python-dotenv==1.0.0
+azure-identity==1.15.0
+azure-mgmt-compute==30.3.0
+azure-keyvault-secrets==4.7.0
+azure-mgmt-storage==21.0.0
+azure-mgmt-network==25.1.0
+azure-mgmt-sql==2.0.1
