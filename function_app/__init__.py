@@ -1,64 +1,60 @@
 import azure.functions as func
 import json
 import logging
-from .fetch_resources import fetch_aws_resources, fetch_azure_resources, CloudResourceError
-from .settings import load_environment
-
-logger = logging.getLogger(__name__)
+from azure.data.tables import TableServiceClient
+import os
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info('Processing credential submission request...')
+    if req.method != 'POST':
+        return func.HttpResponse(
+            json.dumps({'error': 'Method not allowed'}),
+            status_code=405,
+            mimetype='application/json',
+            headers={"Access-Control-Allow-Origin": "*"}
+        )
     try:
-        # Load environment variables
-        load_environment()
-        
-        # Get customer ID from query parameters
-        customer_id = req.params.get('customer_id')
-        if not customer_id:
+        data = req.get_json()
+        customer_id = data.get('customer_id')
+        provider = data.get('provider')
+        if not customer_id or not provider:
             return func.HttpResponse(
-                json.dumps({"error": "Customer ID is required"}),
+                json.dumps({'error': 'customer_id and provider are required'}),
                 status_code=400,
-                mimetype="application/json"
+                mimetype='application/json',
+                headers={"Access-Control-Allow-Origin": "*"}
             )
-
-        # Get cloud provider from query parameters (optional)
-        cloud_provider = req.params.get('provider', 'all').lower()
-        
-        # Initialize response data
-        response_data = {
-            "customer_id": customer_id,
-            "resources": {}
+        # Prepare entity for Table Storage
+        entity = {
+            'PartitionKey': str(customer_id),
+            'RowKey': str(provider)
         }
-
-        # Fetch resources based on provider
-        if cloud_provider in ['all', 'aws']:
-            try:
-                response_data["resources"]["aws"] = fetch_aws_resources(customer_id)
-            except CloudResourceError as e:
-                response_data["resources"]["aws"] = {"error": str(e)}
-                logger.error(f"AWS resource fetch error: {str(e)}")
-
-        if cloud_provider in ['all', 'azure']:
-            try:
-                response_data["resources"]["azure"] = fetch_azure_resources(customer_id)
-            except CloudResourceError as e:
-                response_data["resources"]["azure"] = {"error": str(e)}
-                logger.error(f"Azure resource fetch error: {str(e)}")
-
-        # Return successful response
+        for k, v in data.items():
+            if k not in ['customer_id', 'provider']:
+                entity[k] = v
+        # Use environment variable for connection string
+        table_conn_str = os.environ.get('AzureWebJobsStorage')
+        if not table_conn_str:
+            return func.HttpResponse(
+                json.dumps({'error': 'AzureWebJobsStorage connection string not set'}),
+                status_code=500,
+                mimetype='application/json',
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
+        table_service = TableServiceClient.from_connection_string(table_conn_str)
+        table_client = table_service.get_table_client('CloudCredentials')
+        table_client.upsert_entity(entity)
         return func.HttpResponse(
-            json.dumps(response_data),
+            json.dumps({'success': True}),
             status_code=200,
-            mimetype="application/json"
+            mimetype='application/json',
+            headers={"Access-Control-Allow-Origin": "*"}
         )
-
     except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
+        logging.error(f'Error saving credentials: {str(e)}')
         return func.HttpResponse(
-            json.dumps({
-                "error": "Internal server error",
-                "details": str(e)
-            }),
+            json.dumps({'error': str(e)}),
             status_code=500,
-            mimetype="application/json"
+            mimetype='application/json',
+            headers={"Access-Control-Allow-Origin": "*"}
         )
-
