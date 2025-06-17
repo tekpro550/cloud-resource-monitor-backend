@@ -2,9 +2,21 @@ import azure.functions as func
 import json
 import logging
 from azure.data.tables import TableServiceClient
+import os
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info('Processing credential submission request...')
+    if req.method == 'OPTIONS':
+        # Handle CORS preflight
+        return func.HttpResponse(
+            '',
+            status_code=204,
+            headers={
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type'
+            }
+        )
     if req.method != 'POST':
         return func.HttpResponse(
             json.dumps({'error': 'Method not allowed'}),
@@ -31,8 +43,15 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         for k, v in data.items():
             if k not in ['customer_id', 'provider']:
                 entity[k] = v
-        # Connect to Table Storage (using provided connection string)
-        table_conn_str = "DefaultEndpointsProtocol=https;AccountName=sslmonitorstorage;AccountKey=/zTPaMk1yDmVlYal0W9RwR+6cCNP+ld0bWbwX1lbEThrFJyeycTI4ML9OrG4dF7OjPHxRek7IlBI+ASt/rA8xQ==;EndpointSuffix=core.windows.net"
+        # Use environment variable for connection string
+        table_conn_str = os.environ.get('AzureWebJobsStorage')
+        if not table_conn_str:
+            return func.HttpResponse(
+                json.dumps({'error': 'AzureWebJobsStorage connection string not set'}),
+                status_code=500,
+                mimetype='application/json',
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
         table_service = TableServiceClient.from_connection_string(table_conn_str)
         table_client = table_service.get_table_client('CloudCredentials')
         table_client.upsert_entity(entity)
