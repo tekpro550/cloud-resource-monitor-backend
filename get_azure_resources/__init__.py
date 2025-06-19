@@ -46,6 +46,15 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         table_client = table_service.get_table_client('CloudCredentials')
         filter_query = f"PartitionKey eq '{customer_id}' and RowKey eq 'Azure'"
         entities = list(table_client.query_entities(filter_query))
+        logging.info(f"Entities found: {len(entities)}")
+        if not entities:
+            logging.error(f'No credentials found for customer_id={customer_id} and provider=Azure')
+            return func.HttpResponse(
+                json.dumps({'error': 'No credentials found for this customer/provider'}),
+                status_code=404,
+                mimetype='application/json',
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
         all_resources = []
         for cred in entities:
             all_resources.extend(fetch_azure_resources(cred))
@@ -56,7 +65,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             headers={"Access-Control-Allow-Origin": "*"}
         )
     except Exception as e:
-        logging.error(f'Error fetching Azure resources: {str(e)}')
+        logging.error(f'Error fetching Azure resources: {str(e)}', exc_info=True)
         return func.HttpResponse(
             json.dumps({'error': str(e)}),
             status_code=500,
