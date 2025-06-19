@@ -8,8 +8,8 @@ import boto3
 def fetch_aws_resources(cred):
     try:
         session = boto3.Session(
-            aws_access_key_id=cred.get('ClientId'),
-            aws_secret_access_key=cred.get('ClientSecret'),
+            aws_access_key_id=cred.get('AccessKeyId') or cred.get('ClientId'),
+            aws_secret_access_key=cred.get('SecretAccessKey') or cred.get('ClientSecret'),
             aws_session_token=cred.get('SessionToken'),  # Optional
             region_name=cred.get('Region', 'us-east-1')
         )
