@@ -3,6 +3,7 @@ import json
 import os
 import azure.functions as func
 from azure.data.tables import TableServiceClient
+from azure.core.exceptions import ResourceNotFoundError
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info('Python HTTP trigger function processed a request to list AWS resources from cache.')
@@ -32,7 +33,10 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             status_code=200,
             mimetype="application/json"
         )
-
+    except ResourceNotFoundError:
+        # The table doesn't exist yet, which is expected before the first refresh.
+        logging.info("AwsResources table not found, returning empty list.")
+        return func.HttpResponse(json.dumps({"resources": []}), status_code=200, mimetype="application/json")
     except Exception as e:
         logging.error(f"Error fetching cached AWS resources: {e}", exc_info=True)
         return func.HttpResponse(f"An error occurred: {str(e)}", status_code=500) 
