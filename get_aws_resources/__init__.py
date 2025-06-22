@@ -59,7 +59,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                     instance_arn = instance['arn']
                     resource = { "id": instance_arn, "name": instance['name'], "type": "Lightsail Instance", "region": instance['location']['regionName'], "status": instance['state']['name'], "details": { "blueprint": instance['blueprintName'] } }
                     all_resources.append(resource)
-                    resource_entity = { "PartitionKey": customer_id, "RowKey": instance_arn.replace(":", "_"), "name": instance['name'], "type": "Lightsail Instance", "region": instance['location']['regionName'], "status": instance['state']['name'], "blueprint": instance['blueprintName'] }
+                    resource_entity = { "PartitionKey": customer_id, "RowKey": instance_arn.replace(":", "_").replace("/", "_"), "name": instance['name'], "type": "Lightsail Instance", "region": instance['location']['regionName'], "status": instance['state']['name'], "blueprint": instance['blueprintName'] }
                     resources_client.upsert_entity(entity=resource_entity, mode=UpdateMode.MERGE)
                     
             except Exception as region_error:
