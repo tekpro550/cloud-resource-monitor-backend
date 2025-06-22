@@ -1,71 +1,55 @@
 import azure.functions as func
 import json
 import logging
-from azure.data.tables import TableServiceClient
+from azure.data.tables import TableServiceClient, UpdateMode
 import os
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info('Processing credential submission request...')
-    if req.method == 'OPTIONS':
-        # Handle CORS preflight
-        return func.HttpResponse(
-            '',
-            status_code=204,
-            headers={
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type'
-            }
-        )
-    if req.method != 'POST':
-        return func.HttpResponse(
-            json.dumps({'error': 'Method not allowed'}),
-            status_code=405,
-            mimetype='application/json',
-            headers={"Access-Control-Allow-Origin": "*"}
-        )
+    logging.info('Python HTTP trigger function processed a request to add credentials.')
+
     try:
-        data = req.get_json()
-        customer_id = data.get('customer_id')
-        provider = data.get('provider')
-        if not customer_id or not provider:
-            return func.HttpResponse(
-                json.dumps({'error': 'customer_id and provider are required'}),
-                status_code=400,
-                mimetype='application/json',
-                headers={"Access-Control-Allow-Origin": "*"}
-            )
-        # Prepare entity for Table Storage
+        req_body = req.get_json()
+    except ValueError:
+        return func.HttpResponse("Invalid JSON format", status_code=400)
+
+    customer_id = req_body.get('customer_id')
+    customer_name = req_body.get('customer_name')
+    provider = req_body.get('provider')
+
+    if not all([customer_id, customer_name, provider]):
+        return func.HttpResponse("Missing required fields: customer_id, customer_name, and provider are required.", status_code=400)
+
+    try:
+        connect_str = os.environ["AzureWebJobsStorage"]
+        table_service_client = TableServiceClient.from_connection_string(conn_str=connect_str)
+        table_client = table_service_client.get_table_client(table_name="Credentials")
+
         entity = {
-            'PartitionKey': str(customer_id),
-            'RowKey': str(provider)
+            "PartitionKey": provider,
+            "RowKey": customer_id,
+            "customer_name": customer_name
         }
-        for k, v in data.items():
-            if k not in ['customer_id', 'provider']:
-                entity[k] = v
-        # Use environment variable for connection string
-        table_conn_str = os.environ.get('AzureWebJobsStorage')
-        if not table_conn_str:
-            return func.HttpResponse(
-                json.dumps({'error': 'AzureWebJobsStorage connection string not set'}),
-                status_code=500,
-                mimetype='application/json',
-                headers={"Access-Control-Allow-Origin": "*"}
-            )
-        table_service = TableServiceClient.from_connection_string(table_conn_str)
-        table_client = table_service.get_table_client('CloudCredentials')
-        table_client.upsert_entity(entity)
+
+        # Remove keys that are part of the entity key
+        safe_body = req_body.copy()
+        del safe_body['customer_id']
+        del safe_body['customer_name']
+        del safe_body['provider']
+
+        # Add remaining fields from the request body
+        entity.update(safe_body)
+
+        table_client.upsert_entity(entity=entity, mode=UpdateMode.MERGE)
+
         return func.HttpResponse(
-            json.dumps({'success': True}),
+            json.dumps({"message": f"Credentials for customer {customer_id} ({customer_name}) saved successfully."}),
             status_code=200,
-            mimetype='application/json',
-            headers={"Access-Control-Allow-Origin": "*"}
+            mimetype="application/json"
         )
+
     except Exception as e:
-        logging.error(f'Error saving credentials: {str(e)}')
+        logging.error(f"Error saving credentials: {e}")
         return func.HttpResponse(
-            json.dumps({'error': str(e)}),
-            status_code=500,
-            mimetype='application/json',
-            headers={"Access-Control-Allow-Origin": "*"}
+             "An error occurred while saving the credentials.",
+             status_code=500
         ) 
