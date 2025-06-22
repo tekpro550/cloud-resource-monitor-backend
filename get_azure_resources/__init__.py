@@ -44,7 +44,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         table_conn_str = os.environ.get('AzureWebJobsStorage')
         table_service = TableServiceClient.from_connection_string(table_conn_str)
         table_client = table_service.get_table_client('CloudCredentials')
-        filter_query = f"PartitionKey eq '{customer_id}' and RowKey eq 'azure'"
+        filter_query = f"PartitionKey eq 'azure' and RowKey eq '{customer_id}'"
         entities = list(table_client.query_entities(filter_query))
         logging.info(f"Entities found: {len(entities)}")
         if not entities:

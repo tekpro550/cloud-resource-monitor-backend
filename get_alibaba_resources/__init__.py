@@ -31,7 +31,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         table_conn_str = os.environ.get('AzureWebJobsStorage')
         table_service = TableServiceClient.from_connection_string(table_conn_str)
         table_client = table_service.get_table_client('CloudCredentials')
-        filter_query = f"PartitionKey eq '{customer_id}' and RowKey eq 'alibaba'"
+        filter_query = f"PartitionKey eq 'alibaba' and RowKey eq '{customer_id}'"
         entities = list(table_client.query_entities(filter_query))
         all_resources = []
         for cred in entities:

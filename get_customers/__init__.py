@@ -18,7 +18,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     try:
         connect_str = os.environ["AzureWebJobsStorage"]
         table_service_client = TableServiceClient.from_connection_string(conn_str=connect_str)
-        table_client = table_service_client.get_table_client(table_name="Credentials")
+        table_client = table_service_client.get_table_client(table_name="CloudCredentials")
 
         filter_query = f"PartitionKey eq '{provider}'"
         entities = table_client.query_entities(query_filter=filter_query)
