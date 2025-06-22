@@ -1,74 +1,81 @@
-import azure.functions as func
-import json
 import logging
-from azure.data.tables import TableServiceClient
+import json
 import os
+import azure.functions as func
+from azure.data.tables import TableServiceClient, UpdateMode
 from azure.identity import ClientSecretCredential
 from azure.mgmt.compute import ComputeManagementClient
 
-def fetch_azure_resources(cred):
-    try:
-        credential = ClientSecretCredential(
-            tenant_id=cred.get('TenantId'),
-            client_id=cred.get('ClientId'),
-            client_secret=cred.get('ClientSecret')
-        )
-        subscription_id = cred.get('SubscriptionId')
-        compute_client = ComputeManagementClient(credential, subscription_id)
-        vms = compute_client.virtual_machines.list_all()
-        resources = []
-        for vm in vms:
-            resources.append({
-                'name': vm.name,
-                'provider': 'Azure',
-                'type': 'VM',
-                'status': 'unknown',
-                'region': vm.location
-            })
-        return resources
-    except Exception as e:
-        logging.error(f"Azure fetch error: {e}")
-        return []
-
 def main(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info('Processing Azure resource fetch request...')
+    logging.info('Python HTTP trigger function processed a request for Azure resources.')
+
     customer_id = req.params.get('customer_id')
     if not customer_id:
-        return func.HttpResponse(
-            json.dumps({'error': 'customer_id is required'}),
-            status_code=400,
-            mimetype='application/json',
-            headers={"Access-Control-Allow-Origin": "*"}
-        )
+        return func.HttpResponse("Please pass a customer_id on the query string", status_code=400)
+
     try:
-        table_conn_str = os.environ.get('AzureWebJobsStorage')
-        table_service = TableServiceClient.from_connection_string(table_conn_str)
-        table_client = table_service.get_table_client('CloudCredentials')
-        filter_query = f"PartitionKey eq 'azure' and RowKey eq '{customer_id}'"
-        entities = list(table_client.query_entities(filter_query))
-        logging.info(f"Entities found: {len(entities)}")
-        if not entities:
-            logging.error(f'No credentials found for customer_id={customer_id} and provider=Azure')
-            return func.HttpResponse(
-                json.dumps({'error': 'No credentials found for this customer/provider'}),
-                status_code=404,
-                mimetype='application/json',
-                headers={"Access-Control-Allow-Origin": "*"}
-            )
-        all_resources = []
-        for cred in entities:
-            all_resources.extend(fetch_azure_resources(cred))
-        return func.HttpResponse(
-            json.dumps({'resources': all_resources}),
-            status_code=200,
-            mimetype='application/json',
-            headers={"Access-Control-Allow-Origin": "*"}
+        connect_str = os.environ["AzureWebJobsStorage"]
+        table_service_client = TableServiceClient.from_connection_string(conn_str=connect_str)
+
+        # Get credentials from CloudCredentials table
+        credentials_client = table_service_client.get_table_client(table_name="CloudCredentials")
+        credential_entity = credentials_client.get_entity(partition_key="azure", row_key=customer_id)
+
+        subscription_id = credential_entity.get("subscription_id")
+        tenant_id = credential_entity.get("tenant_id")
+        client_id = credential_entity.get("client_id")
+        client_secret = credential_entity.get("client_secret")
+
+        if not all([subscription_id, tenant_id, client_id, client_secret]):
+            raise ValueError("Azure credentials not found or incomplete for the customer.")
+
+        # Authenticate with Azure
+        credential = ClientSecretCredential(
+            tenant_id=tenant_id,
+            client_id=client_id,
+            client_secret=client_secret
         )
-    except Exception as e:
-        logging.error(f'Error fetching Azure resources: {str(e)}', exc_info=True)
+        compute_client = ComputeManagementClient(credential, subscription_id)
+
+        resources = []
+        resources_client = table_service_client.get_table_client(table_name="AzureResources")
+
+        for vm in compute_client.virtual_machines.list_all():
+            status = "unknown"
+            # Getting instance view to find the status is an extra call per VM
+            # vm_view = compute_client.virtual_machines.instance_view(vm.id.split('/')[4], vm.name)
+            # statuses = [s for s in vm_view.statuses if s.code.startswith('PowerState/')]
+            # if statuses:
+            #     status = statuses[0].display_status
+
+            resource = {
+                "id": vm.id,
+                "name": vm.name,
+                "type": "Virtual Machine",
+                "region": vm.location,
+                "status": status,
+                "details": {"vm_size": vm.hardware_profile.vm_size}
+            }
+            resources.append(resource)
+
+            # Save to AzureResources table
+            resource_entity = {
+                "PartitionKey": customer_id,
+                "RowKey": vm.id.replace("/", "_"), # RowKey can't have slashes
+                "name": vm.name,
+                "type": "Virtual Machine",
+                "region": vm.location,
+                "status": status,
+                "vm_size": vm.hardware_profile.vm_size
+            }
+            resources_client.upsert_entity(entity=resource_entity, mode=UpdateMode.MERGE)
+            
         return func.HttpResponse(
-            json.dumps({'error': str(e)}),
-            status_code=500,
-            mimetype='application/json',
-            headers={"Access-Control-Allow-Origin": "*"}
-        ) 
+            json.dumps({"resources": resources}),
+            status_code=200,
+            mimetype="application/json"
+        )
+
+    except Exception as e:
+        logging.error(f"Error fetching Azure resources: {e}")
+        return func.HttpResponse(f"An error occurred: {str(e)}", status_code=500) 
