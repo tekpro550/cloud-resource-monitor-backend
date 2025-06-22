@@ -22,13 +22,13 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         cached_resources = list(resources_client.query_entities(filter_query))
         
         # Clean up the response to remove Azure-specific metadata
+        cleaned_resources = []
         for resource in cached_resources:
-            del resource['PartitionKey']
-            del resource['RowKey']
-            del resource['odata.etag']
+            cleaned_resource = {k: v for k, v in resource.items() if k not in ['PartitionKey', 'RowKey', 'odata.etag']}
+            cleaned_resources.append(cleaned_resource)
             
         return func.HttpResponse(
-            json.dumps({"resources": cached_resources}),
+            json.dumps({"resources": cleaned_resources}),
             status_code=200,
             mimetype="application/json"
         )

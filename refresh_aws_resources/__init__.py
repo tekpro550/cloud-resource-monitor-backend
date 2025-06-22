@@ -8,9 +8,17 @@ from azure.data.tables import TableServiceClient, UpdateMode
 def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info('Python HTTP trigger function processed a request for AWS resources.')
 
+    # Get customer_id from either query parameter (GET) or request body (POST)
     customer_id = req.params.get('customer_id')
     if not customer_id:
-        return func.HttpResponse("Please pass a customer_id on the query string", status_code=400)
+        try:
+            req_body = req.get_json()
+            customer_id = req_body.get('customer_id')
+        except ValueError:
+            pass  # No JSON body
+
+    if not customer_id:
+        return func.HttpResponse("Please pass a customer_id on the query string or in the request body", status_code=400)
 
     try:
         connect_str = os.environ["AzureWebJobsStorage"]
