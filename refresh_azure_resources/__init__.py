@@ -5,53 +5,26 @@ import azure.functions as func
 from azure.data.tables import TableServiceClient, UpdateMode
 from azure.identity import ClientSecretCredential
 from azure.mgmt.compute import ComputeManagementClient
-from azure.core.exceptions import ResourceNotFoundError
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info('Python HTTP trigger function processed a request to list Azure resources from cache.')
+    logging.info('Python HTTP trigger function processed a request to refresh Azure resources.')
 
+    # Get customer_id from either query parameter (GET) or request body (POST)
     customer_id = req.params.get('customer_id')
     if not customer_id:
-        return func.HttpResponse("Please pass a customer_id on the query string", status_code=400)
+        try:
+            req_body = req.get_json()
+            customer_id = req_body.get('customer_id')
+        except ValueError:
+            pass  # No JSON body
+
+    if not customer_id:
+        return func.HttpResponse("Please pass a customer_id on the query string or in the request body", status_code=400)
 
     try:
         connect_str = os.environ["AzureWebJobsStorage"]
         table_service_client = TableServiceClient.from_connection_string(conn_str=connect_str)
         
-        resources_client = table_service_client.get_table_client(table_name="AzureResources")
-        filter_query = f"PartitionKey eq '{customer_id}'"
-        
-        cached_resources = list(resources_client.query_entities(filter_query))
-        
-        cleaned_resources = []
-        for resource in cached_resources:
-            cleaned_resource = {k: v for k, v in resource.items() if k not in ['PartitionKey', 'RowKey', 'odata.etag']}
-            cleaned_resources.append(cleaned_resource)
-            
-        return func.HttpResponse(
-            json.dumps({"resources": cleaned_resources}),
-            status_code=200,
-            mimetype="application/json"
-        )
-    except ResourceNotFoundError:
-        # The table doesn't exist yet, which is expected before the first refresh.
-        logging.info("AzureResources table not found, returning empty list.")
-        return func.HttpResponse(json.dumps({"resources": []}), status_code=200, mimetype="application/json")
-    except Exception as e:
-        logging.error(f"Error fetching cached Azure resources: {e}", exc_info=True)
-        return func.HttpResponse(f"An error occurred: {str(e)}", status_code=500)
-
-def main(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info('Python HTTP trigger function processed a request for Azure resources.')
-
-    customer_id = req.params.get('customer_id')
-    if not customer_id:
-        return func.HttpResponse("Please pass a customer_id on the query string", status_code=400)
-
-    try:
-        connect_str = os.environ["AzureWebJobsStorage"]
-        table_service_client = TableServiceClient.from_connection_string(conn_str=connect_str)
-
         # Get credentials from CloudCredentials table
         credentials_client = table_service_client.get_table_client(table_name="CloudCredentials")
         credential_entity = credentials_client.get_entity(partition_key="azure", row_key=customer_id)
@@ -72,17 +45,11 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         )
         compute_client = ComputeManagementClient(credential, subscription_id)
 
-        resources = []
+        all_resources = []
         resources_client = table_service_client.get_table_client(table_name="AzureResources")
 
         for vm in compute_client.virtual_machines.list_all():
             status = "unknown"
-            # Getting instance view to find the status is an extra call per VM
-            # vm_view = compute_client.virtual_machines.instance_view(vm.id.split('/')[4], vm.name)
-            # statuses = [s for s in vm_view.statuses if s.code.startswith('PowerState/')]
-            # if statuses:
-            #     status = statuses[0].display_status
-
             resource = {
                 "id": vm.id,
                 "name": vm.name,
@@ -91,12 +58,10 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 "status": status,
                 "details": {"vm_size": vm.hardware_profile.vm_size}
             }
-            resources.append(resource)
-
-            # Save to AzureResources table
+            all_resources.append(resource)
             resource_entity = {
                 "PartitionKey": customer_id,
-                "RowKey": vm.id.replace("/", "_"), # RowKey can't have slashes
+                "RowKey": vm.id.replace("/", "_"),
                 "name": vm.name,
                 "type": "Virtual Machine",
                 "region": vm.location,
@@ -104,13 +69,13 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 "vm_size": vm.hardware_profile.vm_size
             }
             resources_client.upsert_entity(entity=resource_entity, mode=UpdateMode.MERGE)
-            
+        
         return func.HttpResponse(
-            json.dumps({"resources": resources}),
+            json.dumps({"resources": all_resources}),
             status_code=200,
             mimetype="application/json"
         )
 
     except Exception as e:
-        logging.error(f"Error fetching Azure resources: {e}")
+        logging.error(f"Error fetching Azure resources: {e}", exc_info=True)
         return func.HttpResponse(f"An error occurred: {str(e)}", status_code=500) 
