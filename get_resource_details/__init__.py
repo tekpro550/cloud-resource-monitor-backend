@@ -11,19 +11,15 @@ from azure.identity import ClientSecretCredential
 # --- Helper function for AWS Lightsail ---
 def get_lightsail_metrics(lightsail_client, instance_name):
     """Fetches key metrics for a given Lightsail instance."""
-    
     end_time = datetime.utcnow()
     start_time = end_time - timedelta(hours=3) # Get metrics for the last 3 hours
-    
     metric_names = [
         'CPUUtilization',
         'NetworkIn',
         'NetworkOut',
         'StatusCheckFailed'
     ]
-    
     metrics_response = []
-
     for metric_name in metric_names:
         try:
             result = lightsail_client.get_instance_metric_data(
@@ -34,7 +30,6 @@ def get_lightsail_metrics(lightsail_client, instance_name):
                 endTime=end_time,
                 unit='Percent' if 'CPU' in metric_name else 'Bytes' if 'Network' in metric_name else 'Count'
             )
-            
             metric_data = {
                 "name": result['metricName'],
                 "unit": result['unit'],
@@ -46,54 +41,81 @@ def get_lightsail_metrics(lightsail_client, instance_name):
             metrics_response.append(metric_data)
         except Exception as e:
             logging.warning(f"Could not fetch metric '{metric_name}' for instance '{instance_name}': {e}")
+    return metrics_response
 
+# --- Helper function for AWS EC2 ---
+def get_ec2_metrics(cloudwatch_client, instance_id, region):
+    """Fetches key metrics for a given EC2 instance."""
+    end_time = datetime.utcnow()
+    start_time = end_time - timedelta(hours=3)
+    metric_names = [
+        'CPUUtilization',
+        'NetworkIn',
+        'NetworkOut',
+        'DiskReadBytes',
+        'DiskWriteBytes'
+    ]
+    metrics_response = []
+    for metric_name in metric_names:
+        try:
+            result = cloudwatch_client.get_metric_statistics(
+                Namespace='AWS/EC2',
+                MetricName=metric_name,
+                Dimensions=[{'Name': 'InstanceId', 'Value': instance_id}],
+                StartTime=start_time,
+                EndTime=end_time,
+                Period=300,
+                Statistics=['Average']
+            )
+            metric_data = {
+                "name": metric_name,
+                "unit": result['Label'] if 'Label' in result else '',
+                "data": [
+                    {"timestamp": dp['Timestamp'].isoformat(), "value": dp['Average']}
+                    for dp in sorted(result['Datapoints'], key=lambda x: x['Timestamp']) if 'Average' in dp
+                ]
+            }
+            metrics_response.append(metric_data)
+        except Exception as e:
+            logging.warning(f"Could not fetch EC2 metric '{metric_name}' for instance '{instance_id}': {e}")
     return metrics_response
 
 # --- Main Function ---
 def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info('Python HTTP trigger function processed a request for resource details.')
-
     customer_id = req.params.get('customer_id')
     provider = req.params.get('provider')
     resource_id = req.params.get('resource_id')
     region = req.params.get('region')
-
     if not all([customer_id, provider, resource_id, region]):
         return func.HttpResponse("Missing required parameters: customer_id, provider, resource_id, region", status_code=400)
-
     try:
         connect_str = os.environ["AzureWebJobsStorage"]
         table_service_client = TableServiceClient.from_connection_string(conn_str=connect_str)
-        
         credentials_client = table_service_client.get_table_client(table_name="CloudCredentials")
         credential_entity = credentials_client.get_entity(partition_key=provider.lower(), row_key=customer_id)
-
-        aws_access_key_id = credential_entity.get("access_key_id")
-        aws_secret_access_key = credential_entity.get("secret_access_key")
-
-        if not aws_access_key_id or not aws_secret_access_key:
-            raise ValueError("AWS credentials not found or incomplete.")
-
         if provider.lower() == 'aws':
-            # For now, we assume the resource is a Lightsail instance if we're getting details
-            # The resource_id for lightsail is its name for this API call
-            
-            lightsail_client = boto3.client('lightsail', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, region_name=region)
-            
-            # To get metrics, we need the instance *name*, not the full ARN.
-            # The ARN is passed as resource_id, so we parse the name from it.
-            # e.g., arn:aws:lightsail:eu-central-1:16188797438:Instance/a9553129-ffe6-4aaf-bae0-4468055c6c5a
-            # The name is what comes after "Instance/" but that's not the user-visible name.
-            # The user-visible name is passed in the list call, so we assume the frontend sends the user-visible name as resource_id
-            
-            metrics = get_lightsail_metrics(lightsail_client, resource_id)
-            
+            aws_access_key_id = credential_entity.get("access_key_id")
+            aws_secret_access_key = credential_entity.get("secret_access_key")
+            if not aws_access_key_id or not aws_secret_access_key:
+                raise ValueError("AWS credentials not found or incomplete.")
+            # Detect if resource_id is EC2 or Lightsail
+            if resource_id.startswith('arn:aws:lightsail:') or resource_id.lower().startswith('lightsail'):
+                # Assume Lightsail instance name is passed
+                lightsail_client = boto3.client('lightsail', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, region_name=region)
+                metrics = get_lightsail_metrics(lightsail_client, resource_id)
+                resource_type = 'lightsail'
+            else:
+                # Assume EC2 instance ID is passed
+                cloudwatch_client = boto3.client('cloudwatch', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, region_name=region)
+                metrics = get_ec2_metrics(cloudwatch_client, resource_id, region)
+                resource_type = 'ec2'
             response_data = {
                 "id": resource_id,
+                "type": resource_type,
                 "metrics": metrics
             }
             return func.HttpResponse(json.dumps(response_data, default=str), mimetype="application/json")
-        
         elif provider.lower() == 'azure':
             subscription_id = credential_entity.get("subscription_id")
             tenant_id = credential_entity.get("tenant_id")
@@ -106,7 +128,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 client_id=client_id,
                 client_secret=client_secret
             )
-            logging.info(f"Fetching metrics for resource_id: {resource_id}")
+            logging.info(f"Fetching metrics for Azure resource_id: {resource_id}")
             monitor_client = MonitorManagementClient(credential, subscription_id)
             try:
                 metrics_data = monitor_client.metrics.list(
@@ -133,12 +155,10 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 }
                 return func.HttpResponse(json.dumps(response_data, default=str), mimetype="application/json")
             except Exception as e:
-                logging.error(f"Failed to fetch Azure metrics for {resource_id}: {e}")
+                logging.error(f"Failed to fetch Azure metrics for {resource_id}: {e}", exc_info=True)
                 return func.HttpResponse(f"Failed to fetch metrics: {str(e)}", status_code=401)
-        
         else:
             return func.HttpResponse(f"Metric fetching not implemented for provider: {provider}", status_code=400)
-
     except Exception as e:
         logging.error(f"Error fetching resource details: {e}", exc_info=True)
         return func.HttpResponse(f"An error occurred: {str(e)}", status_code=500) 
