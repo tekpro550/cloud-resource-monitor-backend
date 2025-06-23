@@ -115,6 +115,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 "type": resource_type,
                 "metrics": metrics
             }
+            if not metrics:
+                response_data["message"] = "No metrics found for this resource. Please check if the resource exists, the metric is available, and permissions are correct."
             return func.HttpResponse(json.dumps(response_data, default=str), mimetype="application/json")
         elif provider.lower() == 'azure':
             subscription_id = credential_entity.get("subscription_id")
@@ -153,6 +155,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                     "id": resource_id,
                     "metrics": metrics
                 }
+                if not metrics:
+                    response_data["message"] = "No metrics found for this resource. Please check if the resource exists, the metric is available, and permissions are correct."
                 return func.HttpResponse(json.dumps(response_data, default=str), mimetype="application/json")
             except Exception as e:
                 logging.error(f"Failed to fetch Azure metrics for {resource_id}: {e}", exc_info=True)
