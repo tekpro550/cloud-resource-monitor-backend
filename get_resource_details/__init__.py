@@ -106,31 +106,35 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 client_id=client_id,
                 client_secret=client_secret
             )
+            logging.info(f"Fetching metrics for resource_id: {resource_id}")
             monitor_client = MonitorManagementClient(credential, subscription_id)
-            # Fetch CPU metrics for the VM
-            metrics_data = monitor_client.metrics.list(
-                resource_id,
-                timespan="PT1H",
-                interval="PT5M",
-                metricnames="Percentage CPU",
-                aggregation="Average"
-            )
-            metrics = []
-            for item in metrics_data.value:
-                metric = {
-                    "name": item.name.localized_value,
-                    "unit": item.unit,
-                    "data": [
-                        {"timestamp": timeseries.data.time_stamp.isoformat(), "value": timeseries.data.average}
-                        for timeseries in item.timeseries for data in timeseries.data if data.average is not None
-                    ]
+            try:
+                metrics_data = monitor_client.metrics.list(
+                    resource_id,
+                    timespan="PT1H",
+                    interval="PT5M",
+                    metricnames="Percentage CPU",
+                    aggregation="Average"
+                )
+                metrics = []
+                for item in metrics_data.value:
+                    metric = {
+                        "name": item.name.localized_value,
+                        "unit": item.unit,
+                        "data": [
+                            {"timestamp": data.time_stamp.isoformat(), "value": data.average}
+                            for timeseries in item.timeseries for data in timeseries.data if data.average is not None
+                        ]
+                    }
+                    metrics.append(metric)
+                response_data = {
+                    "id": resource_id,
+                    "metrics": metrics
                 }
-                metrics.append(metric)
-            response_data = {
-                "id": resource_id,
-                "metrics": metrics
-            }
-            return func.HttpResponse(json.dumps(response_data, default=str), mimetype="application/json")
+                return func.HttpResponse(json.dumps(response_data, default=str), mimetype="application/json")
+            except Exception as e:
+                logging.error(f"Failed to fetch Azure metrics for {resource_id}: {e}")
+                return func.HttpResponse(f"Failed to fetch metrics: {str(e)}", status_code=401)
         
         else:
             return func.HttpResponse(f"Metric fetching not implemented for provider: {provider}", status_code=400)

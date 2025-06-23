@@ -50,9 +50,14 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
         for vm in compute_client.virtual_machines.list_all():
             resource_group = vm.id.split("/")[4]
-            instance_view = compute_client.virtual_machines.instance_view(resource_group, vm.name)
-            statuses = [s for s in instance_view.statuses if s.code.startswith('PowerState/')]
-            status = statuses[0].display_status if statuses else "unknown"
+            logging.info(f"Resource group for VM {vm.name}: {resource_group}")
+            try:
+                instance_view = compute_client.virtual_machines.instance_view(resource_group, vm.name)
+                statuses = [s for s in instance_view.statuses if s.code.startswith('PowerState/')]
+                status = statuses[0].display_status if statuses else "unknown"
+            except Exception as e:
+                logging.error(f"Failed to fetch instance_view for VM {vm.name}: {e}")
+                status = "unknown"
             resource = {
                 "id": vm.id,
                 "name": vm.name,
