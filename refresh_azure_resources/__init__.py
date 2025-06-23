@@ -49,7 +49,10 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         resources_client = table_service_client.get_table_client(table_name="AzureResources")
 
         for vm in compute_client.virtual_machines.list_all():
-            status = "unknown"
+            resource_group = vm.id.split("/")[4]
+            instance_view = compute_client.virtual_machines.instance_view(resource_group, vm.name)
+            statuses = [s for s in instance_view.statuses if s.code.startswith('PowerState/')]
+            status = statuses[0].display_status if statuses else "unknown"
             resource = {
                 "id": vm.id,
                 "name": vm.name,

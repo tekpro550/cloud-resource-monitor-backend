@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 import azure.functions as func
 import boto3
 from azure.data.tables import TableServiceClient
+from azure.mgmt.monitor import MonitorManagementClient
+from azure.identity import ClientSecretCredential
 
 # --- Helper function for AWS Lightsail ---
 def get_lightsail_metrics(lightsail_client, instance_name):
@@ -86,6 +88,44 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             
             metrics = get_lightsail_metrics(lightsail_client, resource_id)
             
+            response_data = {
+                "id": resource_id,
+                "metrics": metrics
+            }
+            return func.HttpResponse(json.dumps(response_data, default=str), mimetype="application/json")
+        
+        elif provider.lower() == 'azure':
+            subscription_id = credential_entity.get("subscription_id")
+            tenant_id = credential_entity.get("tenant_id")
+            client_id = credential_entity.get("client_id")
+            client_secret = credential_entity.get("client_secret")
+            if not all([subscription_id, tenant_id, client_id, client_secret]):
+                raise ValueError("Azure credentials not found or incomplete.")
+            credential = ClientSecretCredential(
+                tenant_id=tenant_id,
+                client_id=client_id,
+                client_secret=client_secret
+            )
+            monitor_client = MonitorManagementClient(credential, subscription_id)
+            # Fetch CPU metrics for the VM
+            metrics_data = monitor_client.metrics.list(
+                resource_id,
+                timespan="PT1H",
+                interval="PT5M",
+                metricnames="Percentage CPU",
+                aggregation="Average"
+            )
+            metrics = []
+            for item in metrics_data.value:
+                metric = {
+                    "name": item.name.localized_value,
+                    "unit": item.unit,
+                    "data": [
+                        {"timestamp": timeseries.data.time_stamp.isoformat(), "value": timeseries.data.average}
+                        for timeseries in item.timeseries for data in timeseries.data if data.average is not None
+                    ]
+                }
+                metrics.append(metric)
             response_data = {
                 "id": resource_id,
                 "metrics": metrics
