@@ -1,0 +1,15 @@
+# HTTPS reverse proxy for the portal. Caddy obtains and renews the certificate for
+# DOMAIN automatically (DNS must point at this VM and ports 80/443 must be open)
+# and redirects http:// to https://.
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+	# File bytes go directly between browsers and the bucket, so API requests are small.
+	request_body {
+		max_size 10MB
+	}
+	reverse_proxy portal:3000
+}

@@ -49,7 +49,7 @@ tekpro-document-portal/
 │   ├── src/                 components, layouts, pages, features/explorer, hooks, services
 │   └── tests/               React Testing Library suites
 ├── tests/e2e/               browser smoke test (Playwright) for a running deployment
-├── deploy/                  systemd units, nginx config, bucket CORS example
+├── deploy/                  vm/ (Docker Compose), azure/ (Container Apps), systemd units, nginx config, bucket CORS example
 ├── docs/                    PRD, architecture, API, security, deployment, backup, testing
 └── .env.example             all server configuration keys
 ```
@@ -105,6 +105,7 @@ Notes:
 | `npm run setup:dev` / `npm run dev` | One-time local setup / run API + web app together |
 | `docker build --platform linux/amd64 -t tekpro-portal .` | Production container image (API + web app, port 3000); see [docs/AZURE_DEPLOYMENT.md](docs/AZURE_DEPLOYMENT.md) |
 | `bash deploy/azure/deploy.sh` | Build in Azure Container Registry and deploy to Azure Container Apps |
+| `sudo ./setup.sh` (in `deploy/vm/` on a VM) | Single-VM deployment: portal + PostgreSQL + automatic HTTPS + nightly backups; see [docs/VM_DEPLOYMENT.md](docs/VM_DEPLOYMENT.md) |
 | `npm run build` | Generate the Prisma client, compile the API to `backend/dist`, type-check and build the SPA to `frontend/dist` |
 | `npm start` | Start the compiled API (`backend/dist/server.js`) |
 | `npm test` | Backend (unit + integration + security) and frontend test suites |
@@ -126,6 +127,7 @@ Backend tests need a disposable PostgreSQL database whose name contains `test`
 - [docs/STORAGE_CONNECTORS.md](docs/STORAGE_CONNECTORS.md) – customer-owned storage (IAM role / access key connectors)
 - [docs/API.md](docs/API.md) – endpoints, permissions, parameters, responses, error codes
 - [docs/SECURITY.md](docs/SECURITY.md) – threat model, permission model, known limitations
+- [docs/VM_DEPLOYMENT.md](docs/VM_DEPLOYMENT.md) – single VM with Docker Compose (portal, PostgreSQL, Caddy HTTPS, backups)
 - [docs/AZURE_DEPLOYMENT.md](docs/AZURE_DEPLOYMENT.md) – Docker image and one-command deployment to Azure Container Apps
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) – step-by-step production deployment on Lightsail
 - [docs/BACKUP_RECOVERY.md](docs/BACKUP_RECOVERY.md) – backups, restore, reconciliation

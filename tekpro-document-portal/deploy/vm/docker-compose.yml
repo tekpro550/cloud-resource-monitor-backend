@@ -1,0 +1,81 @@
+# Tekpro Document Portal - single-VM production deployment.
+#
+#   caddy     HTTPS on ports 80/443 (automatic Let's Encrypt certificate for DOMAIN)
+#   portal    the application image (API + web app), reachable only through caddy
+#   postgres  PostgreSQL 16, data in the `pgdata` volume on the VM's disk, not exposed
+#
+# Settings come from `.env` in this folder (see .env.example; created by setup.sh).
+# Documents are stored in the Lightsail bucket, not on the VM.
+# See docs/VM_DEPLOYMENT.md.
+name: tekpro-portal
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: portal
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: tekpro_portal
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portal -d tekpro_portal"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    logging: *logging
+
+  portal:
+    image: ${PORTAL_IMAGE:-tekprocloud/tekpro-portal:1.0.0}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # All application settings (storage, email, connectors, ...) from .env;
+    # the values below take precedence.
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      APP_BASE_URL: https://${DOMAIN:?set DOMAIN in .env}
+      DATABASE_URL: postgresql://portal:${POSTGRES_PASSWORD}@postgres:5432/tekpro_portal
+      # Exactly one proxy hop (caddy), so rate limits and the audit log see real client IPs.
+      TRUST_PROXY: "1"
+      JOBS_ENABLED: "true"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *logging
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - portal
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    logging: *logging
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
