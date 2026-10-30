@@ -50,6 +50,14 @@ else
   say ".env already exists - leaving it unchanged"
 fi
 
+# Older .env files predate customer storage connections: add the key that encrypts
+# customer access keys (needed to save an "access key" connection) if it is missing.
+if ! grep -Eq '^CONNECTOR_ENCRYPTION_KEY=.+' .env; then
+  say "Adding CONNECTOR_ENCRYPTION_KEY to .env"
+  printf '\n# Encrypts customer storage access keys at rest (keep it: changing it makes saved keys unreadable)\nCONNECTOR_ENCRYPTION_KEY=%s\n' \
+    "$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64"))')" >> .env
+fi
+
 say "Installing dependencies"
 npm ci
 npm run prisma:generate -w backend

@@ -50,6 +50,8 @@ fi
 chmod 600 .env
 [ -n "$(envget POSTGRES_PASSWORD)" ] || envset POSTGRES_PASSWORD "$(openssl rand -hex 24)"
 [ -n "$(envget SESSION_SECRET)" ] || envset SESSION_SECRET "$(openssl rand -base64 48 | tr -d '\n')"
+# Encrypts customer storage access keys at rest; keep it with the other secrets.
+[ -n "$(envget CONNECTOR_ENCRYPTION_KEY)" ] || envset CONNECTOR_ENCRYPTION_KEY "$(openssl rand -base64 32 | tr -d '\n')"
 ask DOMAIN "Portal host name (e.g. portal.tekpro.com)"
 ask ACME_EMAIL "Email for HTTPS certificate notices"
 ask STORAGE_BUCKET "Lightsail bucket name"
