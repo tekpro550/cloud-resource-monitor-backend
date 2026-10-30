@@ -68,7 +68,16 @@ export function statsRoutes(s: Services): Router {
 
   r.get("/storage", async (_req, res) => {
     const [customers, grouped, daily] = await Promise.all([
-      s.prisma.customer.findMany({ select: { id: true, name: true, customerCode: true, status: true }, orderBy: { name: "asc" } }),
+      s.prisma.customer.findMany({
+        select: {
+          id: true,
+          name: true,
+          customerCode: true,
+          status: true,
+          storageConnector: { select: { provider: true, bucket: true, region: true, authType: true, status: true, lastVerifiedAt: true } },
+        },
+        orderBy: { name: "asc" },
+      }),
       s.prisma.document.groupBy({ by: ["customerId", "status"], _count: { _all: true }, _sum: { sizeBytes: true } }),
       s.prisma.$queryRaw<{ day: Date; uploads: bigint; bytes: bigint | null }[]>`
         SELECT date_trunc('day', "availableAt") AS day, COUNT(*) AS uploads, SUM("sizeBytes") AS bytes

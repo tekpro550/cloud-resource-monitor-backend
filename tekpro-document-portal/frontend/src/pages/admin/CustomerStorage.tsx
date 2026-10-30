@@ -6,14 +6,14 @@ import { storageConnectorApi } from "../../services/endpoints";
 import type { ConnectorInput, ConnectorStatus, StorageAuthType, StorageConnector, StorageProvider, VerificationResult } from "../../types/api";
 import { formatDateTime } from "../../utils/format";
 
-const STATUS: Record<ConnectorStatus, { label: string; tone: "success" | "warning" | "danger" | "neutral" }> = {
+export const STATUS: Record<ConnectorStatus, { label: string; tone: "success" | "warning" | "danger" | "neutral" }> = {
   ACTIVE: { label: "Active", tone: "success" },
   PENDING_VERIFICATION: { label: "Needs verification", tone: "warning" },
   FAILED: { label: "Verification failed", tone: "danger" },
   DISABLED: { label: "Disabled", tone: "neutral" },
 };
 
-const PROVIDERS: { id: StorageProvider; label: string }[] = [
+export const PROVIDERS: { id: StorageProvider; label: string }[] = [
   { id: "AWS_S3", label: "Amazon S3 (customer's AWS account)" },
   { id: "LIGHTSAIL", label: "Amazon Lightsail bucket (customer's account)" },
   { id: "S3_COMPATIBLE", label: "Other S3-compatible storage" },

@@ -173,7 +173,9 @@ describe("Super Admin administration", () => {
       expect(overview.body.data).toMatchObject({ activeCustomers: 2, documents: 6 });
       expect(overview.body.data.recentUploads.length).toBeGreaterThan(0);
       const storage = await api(sa).get("/api/v1/stats/storage");
-      expect(storage.body.data.customers.find((c: { name: string }) => c.name === "Antrix").byStatus.AVAILABLE.count).toBe(5);
+      const antrix = storage.body.data.customers.find((c: { name: string }) => c.name === "Antrix");
+      expect(antrix.byStatus.AVAILABLE.count).toBe(5);
+      expect(antrix.storageConnector).toBeNull();
     });
 
     it("updates settings with an audit trail and validates input", async () => {

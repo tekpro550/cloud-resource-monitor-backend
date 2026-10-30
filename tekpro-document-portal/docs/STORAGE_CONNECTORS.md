@@ -42,7 +42,7 @@ never returned by the API, never logged, and replaced (not revealed) when edited
 
 ## 2. Setting up a customer (Super Admin)
 
-1. **Customers → (customer) → Storage.**
+1. **Storage** (Super Admin menu) → *Connect customer storage* next to the customer (or **Customers → (customer) → Storage**).
 2. Choose the storage type, bucket and region (and endpoint for S3-compatible services), choose
    *IAM role* (recommended) or *Access key*, and save. The connection is created as **Needs verification**;
    uploads for this customer are paused until it is verified (there is **no silent fallback** to Tekpro

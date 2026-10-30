@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Alert, Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, Field, Input, Modal, PageHeader, Pagination, Select, Spinner, StatTile, Tabs } from "../../components/ui";
 import { useAsync, useDebounced } from "../../hooks/useAsync";
 import { useCurrentUser } from "../../hooks/useAuth";
@@ -158,7 +158,8 @@ type Tab = "overview" | "staff" | "users" | "storage";
 export function CustomerDetailPage() {
   const { customerId } = useParams();
   const id = customerId!;
-  const [tab, setTab] = useState<Tab>("overview");
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState<Tab>(() => (["staff", "users", "storage"].includes(params.get("tab") ?? "") ? (params.get("tab") as Tab) : "overview"));
   const customer = useAsync(() => customersApi.get(id), [id]);
   const [editing, setEditing] = useState(false);
   const [toggling, setToggling] = useState(false);

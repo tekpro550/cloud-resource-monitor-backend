@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { Alert, Button, Card, ErrorState, Field, Input, PageHeader, Spinner, StatTile } from "../../components/ui";
+import { Link } from "react-router-dom";
+import { Alert, Badge, Button, Card, ErrorState, Field, Input, PageHeader, Spinner, StatTile } from "../../components/ui";
 import { useAsync } from "../../hooks/useAsync";
 import { useAuth, useCurrentUser } from "../../hooks/useAuth";
 import { errorMessage } from "../../services/api";
@@ -7,6 +8,7 @@ import { authApi, settingsApi, statsApi } from "../../services/endpoints";
 import type { PortalSettings } from "../../types/api";
 import { formatBytes, formatDate, ROLE_LABELS } from "../../utils/format";
 import { PASSWORD_HINT } from "../auth/PasswordPages";
+import { PROVIDERS, STATUS } from "./CustomerStorage";
 
 export function StoragePage() {
   const stats = useAsync(() => statsApi.storage(), []);
@@ -19,7 +21,59 @@ export function StoragePage() {
   const peak = Math.max(1, ...dailyUploads.map((d) => d.bytes));
   return (
     <>
-      <PageHeader title="Storage statistics" subtitle="Usage recorded in the portal database (object storage is the source of truth for billing)" />
+      <PageHeader title="Storage" subtitle="Where each customer's documents are stored, and usage recorded in the portal database" />
+      <Card title="Document storage by customer">
+        <p className="muted small">
+          Documents use Tekpro platform storage unless a customer has its own storage connected, for example a bucket in the customer's own AWS account
+          (cross-account IAM role) or Lightsail bucket.
+        </p>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th scope="col">Customer</th>
+                <th scope="col">Stored in</th>
+                <th scope="col">Status</th>
+                <th scope="col">
+                  <span className="visually-hidden">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {customers.map((c) => {
+                const k = c.storageConnector;
+                const status = k ? STATUS[k.status] : null;
+                return (
+                  <tr key={c.id}>
+                    <td data-label="Customer">
+                      <strong>{c.name}</strong> <span className="muted small">{c.customerCode}</span>
+                    </td>
+                    <td data-label="Stored in">
+                      {k ? (
+                        <>
+                          {PROVIDERS.find((p) => p.id === k.provider)?.label ?? k.provider}
+                          <span className="doc-desc">
+                            {k.bucket} · {k.region} · {k.authType === "ASSUME_ROLE" ? "IAM role" : "access key"}
+                          </span>
+                        </>
+                      ) : (
+                        "Tekpro platform storage"
+                      )}
+                    </td>
+                    <td data-label="Status">{status ? <Badge tone={status.tone}>{status.label}</Badge> : <span className="muted">Default</span>}</td>
+                    <td data-label="Actions">
+                      <Link className="btn btn-secondary btn-sm" to={`/customers/${c.id}?tab=storage`}>
+                        {k ? "Manage" : "Connect customer storage"}
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {customers.length === 0 && <p className="muted">No customers yet. Create a customer first, then connect its storage here.</p>}
+      </Card>
       <div className="stats-grid">
         <StatTile label="Active documents" value={formatBytes(total)} />
         <StatTile label="Deleted, pending purge" value={formatBytes(retained)} />

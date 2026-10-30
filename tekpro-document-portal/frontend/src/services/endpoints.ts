@@ -127,7 +127,14 @@ export const statsApi = {
   overview: () => http.get<OverviewStats>("/stats/overview"),
   storage: () =>
     http.get<{
-      customers: { id: string; name: string; customerCode: string; status: string; byStatus: Record<string, { count: number; bytes: number }> }[];
+      customers: {
+        id: string;
+        name: string;
+        customerCode: string;
+        status: string;
+        byStatus: Record<string, { count: number; bytes: number }>;
+        storageConnector: Pick<StorageConnector, "provider" | "bucket" | "region" | "authType" | "status" | "lastVerifiedAt"> | null;
+      }[];
       dailyUploads: { day: string; uploads: number; bytes: number }[];
     }>("/stats/storage"),
 };

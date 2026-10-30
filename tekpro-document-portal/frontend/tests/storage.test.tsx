@@ -91,3 +91,35 @@ describe("customer storage connector UI", () => {
     expect(screen.getByText(/Verification failed/)).toBeInTheDocument();
   });
 });
+
+describe("Storage page (Super Admin)", () => {
+  const stats = (storageConnector: object | null) => ({
+    customers: [{ ...customer, byStatus: {}, storageConnector }],
+    dailyUploads: [],
+  });
+
+  it("shows where each customer's documents are stored and links to the connection setup", async () => {
+    const s = server({ mode: "PLATFORM", connector: null });
+    s.on("GET", /\/stats\/storage$/, () => stats(null));
+    renderApp("/storage");
+    expect(await screen.findByRole("heading", { name: "Document storage by customer" })).toBeInTheDocument();
+    expect(screen.getAllByText("Tekpro platform storage").length).toBeGreaterThan(0);
+    await userEvent.click(screen.getByRole("link", { name: "Connect customer storage" }));
+    expect(await screen.findByRole("tab", { name: "Storage", selected: true })).toBeInTheDocument();
+  });
+
+  it("shows a connected customer bucket with its status", async () => {
+    const s = server({ mode: "CUSTOMER", connector });
+    s.on("GET", /\/stats\/storage$/, () => stats({ provider: "AWS_S3", bucket: "antrix-documents", region: "ap-south-1", authType: "ASSUME_ROLE", status: "ACTIVE", lastVerifiedAt: null }));
+    renderApp("/storage");
+    expect(await screen.findByText(/antrix-documents · ap-south-1 · IAM role/)).toBeInTheDocument();
+    expect(screen.getByText("Active")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Manage" })).toHaveAttribute("href", `/customers/${CUSTOMER_ID}?tab=storage`);
+  });
+
+  it("is not available to other roles", async () => {
+    mockServer(makeUser("TEKPRO_USER"));
+    renderApp("/storage");
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Document storage by customer" })).not.toBeInTheDocument());
+  });
+});
