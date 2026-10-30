@@ -7,7 +7,10 @@ import type {
   FolderPermission,
   MePayload,
   Paged,
+  OperationalSettings,
   PortalSettings,
+  SettingsPayload,
+  StorageUsage,
   Role,
   StorageConnector,
   StorageConnectorView,
@@ -32,7 +35,8 @@ export const customersApi = {
   list: (q?: Query) => http.get<Paged<Customer>>("/customers", q),
   get: (id: string) => http.get<Customer>(`/customers/${id}`),
   create: (body: { name: string; customerCode: string }) => http.post<Customer>("/customers", body),
-  update: (id: string, body: Partial<Pick<Customer, "name" | "status">>) => http.patch<Customer>(`/customers/${id}`, body),
+  update: (id: string, body: Partial<Pick<Customer, "name" | "status" | "storageQuotaBytes">>) => http.patch<Customer>(`/customers/${id}`, body),
+  storageUsage: (id: string) => http.get<StorageUsage>(`/customers/${id}/storage-usage`),
   stats: (id: string) =>
     http.get<{
       folders: number;
@@ -108,8 +112,10 @@ export const auditApi = {
 };
 
 export const settingsApi = {
-  get: () => http.get<{ settings: PortalSettings; configuration: Record<string, unknown> }>("/settings"),
-  update: (patch: Partial<PortalSettings>) => http.patch<{ settings: PortalSettings; configuration: Record<string, unknown> }>("/settings", patch),
+  get: () => http.get<SettingsPayload>("/settings"),
+  update: (patch: Partial<PortalSettings>) => http.patch<SettingsPayload>("/settings", patch),
+  /** A number sets a value; null resets it to the server default. */
+  updateOperational: (patch: { [K in keyof OperationalSettings]?: OperationalSettings[K] | null }) => http.patch<SettingsPayload>("/settings/operational", patch),
 };
 
 export interface OverviewStats {
@@ -133,6 +139,7 @@ export const statsApi = {
         customerCode: string;
         status: string;
         byStatus: Record<string, { count: number; bytes: number }>;
+        storageQuotaBytes: number | null;
         storageConnector: Pick<StorageConnector, "provider" | "bucket" | "region" | "authType" | "status" | "lastVerifiedAt"> | null;
       }[];
       dailyUploads: { day: string; uploads: number; bytes: number }[];
@@ -147,4 +154,8 @@ export const storageConnectorApi = {
   disable: (customerId: string) => http.post<StorageConnector>(`/customers/${customerId}/storage-connector/disable`),
   enable: (customerId: string) => http.post<StorageConnector>(`/customers/${customerId}/storage-connector/enable`),
   remove: (customerId: string) => http.delete<void>(`/customers/${customerId}/storage-connector`),
+  createBucket: (customerId: string, body: { bucket: string; region: string }) =>
+    http.post<{ result: VerificationResult; connector: { bucket: string; region: string; status: string } }>(`/customers/${customerId}/storage-connector/bucket`, body),
+  deleteBucket: (customerId: string, confirmBucket: string) =>
+    http.delete<{ deleted: string; storage: string }>(`/customers/${customerId}/storage-connector/bucket`, { confirmBucket }),
 };

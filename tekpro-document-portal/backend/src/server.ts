@@ -4,6 +4,9 @@ import { startScheduler } from "./jobs/scheduler.js";
 
 const ctx = buildContext();
 const { app, services } = createApp(ctx);
+// Super Admin overrides of upload/download/retention/sign-in limits, refreshed every 30 s.
+await services.operational.refresh().catch((err: Error) => ctx.logger.warn({ err }, "Could not load operational settings; using defaults"));
+const stopRefresh = services.operational.startRefresh();
 
 const server = app.listen(ctx.config.port, ctx.config.host, () => {
   ctx.logger.info(
@@ -20,6 +23,7 @@ const stopScheduler = ctx.config.jobs.enabled ? startScheduler(services) : () =>
 const shutdown = (signal: string) => {
   ctx.logger.info({ signal }, "Shutting down");
   stopScheduler();
+  stopRefresh();
   server.close(async () => {
     await ctx.prisma.$disconnect();
     process.exit(0);

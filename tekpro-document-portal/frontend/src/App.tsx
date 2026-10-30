@@ -7,6 +7,7 @@ import { AppLayout } from "./layouts/AppLayout";
 import { AuditPage, CustomerActivityPage } from "./pages/admin/AuditPage";
 import { CustomerDetailPage, CustomersPage } from "./pages/admin/CustomersPage";
 import { AccountPage, SettingsPage, StoragePage } from "./pages/admin/SystemPages";
+import { OrganisationStoragePage } from "./features/storage/StorageManagement";
 import { UserDetailPage, UsersPage } from "./pages/admin/UsersPage";
 import { LoginPage } from "./pages/auth/LoginPage";
 import { ForgotPasswordPage, ResetPasswordPage } from "./pages/auth/PasswordPages";
@@ -61,6 +62,7 @@ export function App() {
         <Route path="users/:userId" element={<RequireRole roles={SUPER}><UserDetailPage /></RequireRole>} />
         <Route path="audit" element={<RequireRole roles={STAFF}><RequireActivity><AuditPage /></RequireActivity></RequireRole>} />
         <Route path="storage" element={<RequireRole roles={SUPER}><StoragePage /></RequireRole>} />
+        <Route path="organisation-storage" element={<RequireRole roles={["CUSTOMER_ADMIN"]}><OrganisationStoragePage /></RequireRole>} />
         <Route path="settings" element={<RequireRole roles={SUPER}><SettingsPage /></RequireRole>} />
         <Route path="account" element={<AccountPage />} />
         <Route path="access-denied" element={<AccessDeniedPage />} />

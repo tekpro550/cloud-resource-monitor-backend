@@ -46,7 +46,7 @@ describe("role-specific navigation", () => {
     expect(labels("SUPER_ADMIN")).toEqual(["Dashboard", "Customers", "Users", "Audit logs", "Storage", "Settings", "My account"]);
     expect(labels("TEKPRO_USER")).toEqual(["Dashboard", "My customers", "My account"]);
     expect(labels("TEKPRO_USER", true)).toContain("Activity");
-    expect(labels("CUSTOMER_ADMIN")).toEqual(["Dashboard", "Documents", "My account"]);
+    expect(labels("CUSTOMER_ADMIN")).toEqual(["Dashboard", "Documents", "Storage", "My account"]);
     expect(labels("CUSTOMER_USER", true)).toEqual(["Dashboard", "Documents", "Activity", "My account"]);
   });
 

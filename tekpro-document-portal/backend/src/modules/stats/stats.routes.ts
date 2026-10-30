@@ -74,6 +74,7 @@ export function statsRoutes(s: Services): Router {
           name: true,
           customerCode: true,
           status: true,
+          storageQuotaBytes: true,
           storageConnector: { select: { provider: true, bucket: true, region: true, authType: true, status: true, lastVerifiedAt: true } },
         },
         orderBy: { name: "asc" },
@@ -87,10 +88,11 @@ export function statsRoutes(s: Services): Router {
     ]);
     res.json({
       data: {
-        customers: customers.map((c) => {
+        customers: customers.map(({ storageQuotaBytes, ...c }) => {
           const rows = grouped.filter((g) => g.customerId === c.id);
           return {
             ...c,
+            storageQuotaBytes: storageQuotaBytes === null ? null : Number(storageQuotaBytes),
             byStatus: Object.fromEntries(rows.map((g) => [g.status, { count: g._count._all, bytes: Number(g._sum.sizeBytes ?? 0) }])),
           };
         }),

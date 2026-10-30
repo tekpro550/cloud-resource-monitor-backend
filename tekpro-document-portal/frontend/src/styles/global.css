@@ -1372,3 +1372,76 @@ pre {
   flex-direction: column;
   gap: 6px;
 }
+
+/* -------------------------------------------------------------- Storage */
+.progress-bar-danger {
+  background: var(--c-danger);
+}
+.card .progress {
+  margin: 4px 0 12px;
+}
+.input-prefix {
+  display: flex;
+  align-items: stretch;
+}
+.input-prefix > span {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--c-border);
+  border-right: 0;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  background: var(--c-surface-2);
+  color: var(--c-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+.input-prefix > .input {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  min-width: 0;
+}
+
+/* -------------------------------------------------------------- Settings */
+.settings-group + .settings-group {
+  margin-top: 8px;
+}
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 4px 24px;
+}
+.unit-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.unit-input .input {
+  max-width: 140px;
+}
+.unit-input span {
+  color: var(--c-text-muted);
+}
+.field-default {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 0.85em;
+  color: var(--c-text-muted);
+  margin-top: 4px;
+}
+.link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--c-primary);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}
+.form-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}

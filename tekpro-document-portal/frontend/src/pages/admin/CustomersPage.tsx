@@ -8,7 +8,7 @@ import { customersApi, usersApi } from "../../services/endpoints";
 import type { Customer } from "../../types/api";
 import { formatBytes, formatDate, formatDateTime, ROLE_LABELS } from "../../utils/format";
 import { capabilities } from "../../utils/permissions";
-import { CustomerStorage } from "./CustomerStorage";
+import { CustomerStorageTab } from "../../features/storage/StorageManagement";
 import { UserFormDialog } from "./UsersPage";
 
 export function CustomersPage() {
@@ -206,7 +206,7 @@ export function CustomerDetailPage() {
       {tab === "overview" && <CustomerOverview id={id} />}
       {tab === "staff" && <CustomerStaff id={id} />}
       {tab === "users" && <CustomerUsers customer={c} />}
-      {tab === "storage" && <CustomerStorage customerId={id} />}
+      {tab === "storage" && <CustomerStorageTab customerId={id} />}
       {editing && <CustomerFormDialog customer={c} onClose={() => setEditing(false)} onSaved={(u) => (customer.setData(u), setEditing(false))} />}
       {toggling && (
         <ConfirmDialog

@@ -27,7 +27,7 @@
 | 409 | `INVALID_STATE` | Operation not valid in the resource's current state |
 | 409/422/400 | `UPLOAD_VERIFICATION_FAILED` | Object missing (409), size mismatch (422), parts invalid (400) |
 | 410 | `UPLOAD_EXPIRED` | Upload session expired |
-| 413 | `FILE_TOO_LARGE` / `PAYLOAD_TOO_LARGE` | File above limit / JSON body above 256 KB |
+| 413 | `FILE_TOO_LARGE` / `PAYLOAD_TOO_LARGE` / `STORAGE_QUOTA_EXCEEDED` | File above limit / JSON body above 256 KB / upload would exceed the customer's storage limit |
 | 415/422 | `FILE_TYPE_NOT_ALLOWED` | Extension not allowed (415) or content does not match type (422) |
 | 429 | `RATE_LIMITED` | Too many requests |
 | 503 | `STORAGE_UNAVAILABLE` | Object storage failed; retry later |
@@ -63,7 +63,8 @@ email name, not a single repeated character.
 | GET | `/customers?q&status&page&pageSize` | SA all · TU assigned · CA/CU own | Staff also get `documentCount`, `totalBytes` |
 | POST | `/customers` | SA | `{name, customerCode}` (code upper-cased, `^[A-Z0-9][A-Z0-9_-]{1,31}$`) |
 | GET | `/customers/:customerId` | in scope | |
-| PATCH | `/customers/:customerId` | SA | `{name?, status?}`; deactivation revokes customer users' sessions |
+| PATCH | `/customers/:customerId` | SA | `{name?, status?, storageQuotaBytes?}`; deactivation revokes customer users' sessions; `storageQuotaBytes` (positive integer, or `null` for no limit) is audited as `customer.storage_quota_changed` |
+| GET | `/customers/:customerId/storage-usage` | SA, TU (assigned), CA (own) | `{usedBytes, documents, deletedPendingPurge, uploading, quotaBytes, availableBytes, location, bucketManagement: {allowed, available, bucketPrefix, documentsInBucket}}`. Used space = uploads in progress + available + deleted-but-not-purged documents. Tekpro's platform bucket name is never returned |
 | GET | `/customers/:customerId/stats` | SA, TU (assigned) | documents by status, folders, active users, last 24 h |
 | GET | `/customers/:customerId/users` | SA | |
 | GET | `/customers/:customerId/assignments` | SA | |
@@ -132,6 +133,8 @@ See [STORAGE_CONNECTORS.md](STORAGE_CONNECTORS.md).
 | POST | `/customers/:customerId/storage-connector/disable` | SA | Stops new uploads |
 | POST | `/customers/:customerId/storage-connector/enable` | SA | Back to `PENDING_VERIFICATION` |
 | DELETE | `/customers/:customerId/storage-connector` | SA | 409 while documents reference it |
+| POST | `/customers/:customerId/storage-connector/bucket` | SA; CA (own, when `customerAdminCanManageStorage`) | `{bucket, region}`; name must start with the customer's prefix (`tekpro-<code>-`). Creates the bucket in the customer's account (public access blocked, owner-enforced, SSE-S3, versioning, CORS), switches the connection to it and runs verification: `{result, connector}`. 409 if the current bucket holds documents, the name exists or is taken; 400 if the customer's role lacks the bucket management policy. Not for Lightsail |
+| DELETE | `/customers/:customerId/storage-connector/bucket` | as above | `{confirmBucket}` must equal the bucket name. Refused (409) while documents use it. Deletes the portal's objects and their versions under the customer prefix, then the bucket (409 if other files remain). The connection is removed (or disabled if purged document records still reference it): `{deleted, storage}` |
 | GET | `/storage-connectors/portal-identity` | SA | `{principalArn}` – Tekpro principal for trust policies (503 if not configured) |
 
 While a customer has a connector that is not `ACTIVE`, `POST /customers/:id/uploads/initiate` returns
@@ -161,7 +164,8 @@ Action names: `auth.login.succeeded|failed`, `auth.logout`, `auth.password_reset
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/settings` | `{settings, configuration}` (configuration is read-only environment values) |
-| PATCH | `/settings` | Any of `staffAuditAccess`, `staffCanDeleteDocuments`, `staffCanDeleteFolders`, `customerAdminActivityAccess`, `customerUserActivityAccess` (booleans); audited |
+| GET | `/settings` | `{settings, operational: {values, defaults, overridden}, environment: {storageDriver, mailDriver, jobsEnabled}}` |
+| PATCH | `/settings` | Any of `staffAuditAccess`, `staffCanDeleteDocuments`, `staffCanDeleteFolders`, `customerAdminActivityAccess`, `customerUserActivityAccess`, `customerAdminCanManageStorage` (booleans); audited |
+| PATCH | `/settings/operational` | Any of `uploadMaxFileSizeBytes` (1 MiB–5 TiB), `uploadMultipartThresholdBytes` and `uploadPartSizeBytes` (5 MiB–5 GiB), `uploadAllowedExtensions` (executables and scripts refused), `uploadUrlTtlSeconds` (60–900), `uploadSessionTtlSeconds` (300 s–7 days), `downloadUrlTtlSeconds` (30–900), `deletedDocumentRetentionDays` (0–3650), `sessionTtlSeconds` (300 s–30 days), `sessionIdleTimeoutSeconds` (60 s–24 h, not above the session length); `null` resets a value to the server default. Applied immediately and picked up by other instances within 30 s; audited with before/after values |
 | GET | `/stats/overview` | Totals, last 24 h uploads, recent uploads/downloads/admin events |
-| GET | `/stats/storage` | Per-customer counts/bytes by status, daily uploads for 30 days |
+| GET | `/stats/storage` | Per-customer counts/bytes by status, storage limit and connection summary; daily uploads for 30 days |

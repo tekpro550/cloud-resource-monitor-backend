@@ -1,13 +1,22 @@
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
+  CreateBucketCommand,
   CreateMultipartUploadCommand,
+  DeleteBucketCommand,
+  DeleteObjectsCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
+  ListObjectVersionsCommand,
+  PutBucketCorsCommand,
+  PutBucketEncryptionCommand,
+  PutBucketOwnershipControlsCommand,
+  PutBucketVersioningCommand,
   PutObjectCommand,
+  PutPublicAccessBlockCommand,
   S3Client,
   S3ServiceException,
   UploadPartCommand,
@@ -201,6 +210,77 @@ export class S3StorageAdapter implements StorageAdapter {
     return { url, method, headers, expiresAt: new Date(Date.now() + ttl * 1000) };
   }
 
+  async createBucket(opts: { region: string; corsOrigin: string }): Promise<void> {
+    const Bucket = this.bucket;
+    await this.run("CreateBucket", () =>
+      this.client.send(
+        new CreateBucketCommand({
+          Bucket,
+          ObjectOwnership: "BucketOwnerEnforced",
+          // us-east-1 is the default location and must not be named explicitly.
+          ...(opts.region === "us-east-1" ? {} : { CreateBucketConfiguration: { LocationConstraint: opts.region as never } }),
+        }),
+      ),
+    );
+    await this.run("PutPublicAccessBlock", () =>
+      this.client.send(
+        new PutPublicAccessBlockCommand({
+          Bucket,
+          PublicAccessBlockConfiguration: { BlockPublicAcls: true, IgnorePublicAcls: true, BlockPublicPolicy: true, RestrictPublicBuckets: true },
+        }),
+      ),
+    );
+    await this.run("PutBucketOwnershipControls", () =>
+      this.client.send(new PutBucketOwnershipControlsCommand({ Bucket, OwnershipControls: { Rules: [{ ObjectOwnership: "BucketOwnerEnforced" }] } })),
+    );
+    await this.run("PutBucketEncryption", () =>
+      this.client.send(
+        new PutBucketEncryptionCommand({
+          Bucket,
+          ServerSideEncryptionConfiguration: { Rules: [{ ApplyServerSideEncryptionByDefault: { SSEAlgorithm: "AES256" } }] },
+        }),
+      ),
+    );
+    await this.run("PutBucketVersioning", () =>
+      this.client.send(new PutBucketVersioningCommand({ Bucket, VersioningConfiguration: { Status: "Enabled" } })),
+    );
+    await this.run("PutBucketCors", () =>
+      this.client.send(
+        new PutBucketCorsCommand({
+          Bucket,
+          CORSConfiguration: {
+            CORSRules: [
+              { AllowedOrigins: [opts.corsOrigin], AllowedMethods: ["PUT", "GET", "HEAD"], AllowedHeaders: ["*"], ExposeHeaders: ["ETag"], MaxAgeSeconds: 3000 },
+            ],
+          },
+        }),
+      ),
+    );
+  }
+
+  async deleteBucket(opts: { prefix: string }): Promise<void> {
+    const Bucket = this.bucket;
+    let KeyMarker: string | undefined;
+    let VersionIdMarker: string | undefined;
+    do {
+      const page = await this.run("ListObjectVersions", () =>
+        this.client.send(new ListObjectVersionsCommand({ Bucket, Prefix: opts.prefix, KeyMarker, VersionIdMarker, MaxKeys: 1000 })),
+      );
+      const objects = [...(page.Versions ?? []), ...(page.DeleteMarkers ?? [])]
+        .filter((v) => v.Key)
+        .map((v) => ({ Key: v.Key!, VersionId: v.VersionId }));
+      if (objects.length) {
+        const res = await this.run("DeleteObjects", () =>
+          this.client.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: objects, Quiet: true } })),
+        );
+        if (res.Errors?.length) throw new StorageError("ACCESS_DENIED", `Storage DeleteObjects failed for ${res.Errors.length} object(s)`, false);
+      }
+      KeyMarker = page.IsTruncated ? page.NextKeyMarker : undefined;
+      VersionIdMarker = page.IsTruncated ? page.NextVersionIdMarker : undefined;
+    } while (KeyMarker);
+    await this.run("DeleteBucket", () => this.client.send(new DeleteBucketCommand({ Bucket })));
+  }
+
   private async run<T>(operation: string, fn: () => Promise<T>): Promise<T> {
     try {
       return await fn();
@@ -218,7 +298,10 @@ export function mapS3Error(operation: string, err: unknown): StorageError {
 
   let kind: StorageErrorKind = "UNKNOWN";
   let retryable = false;
-  if (["NoSuchKey", "NotFound", "NoSuchUpload", "NoSuchBucket"].includes(name) || status === 404) kind = "NOT_FOUND";
+  if (name === "BucketAlreadyOwnedByYou") kind = "BUCKET_EXISTS";
+  else if (name === "BucketAlreadyExists") kind = "BUCKET_NAME_TAKEN";
+  else if (name === "BucketNotEmpty") kind = "BUCKET_NOT_EMPTY";
+  else if (["NoSuchKey", "NotFound", "NoSuchUpload", "NoSuchBucket"].includes(name) || status === 404) kind = "NOT_FOUND";
   else if (name === "SignatureDoesNotMatch") kind = "INVALID_SIGNATURE";
   else if (name === "ExpiredToken" || name === "RequestExpired") kind = "EXPIRED";
   else if (name === "AccessDenied" || name === "Forbidden" || name === "InvalidAccessKeyId" || status === 403) kind = "ACCESS_DENIED";

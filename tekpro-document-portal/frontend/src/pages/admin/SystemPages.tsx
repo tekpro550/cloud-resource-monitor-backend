@@ -5,7 +5,7 @@ import { useAsync } from "../../hooks/useAsync";
 import { useAuth, useCurrentUser } from "../../hooks/useAuth";
 import { errorMessage } from "../../services/api";
 import { authApi, settingsApi, statsApi } from "../../services/endpoints";
-import type { PortalSettings } from "../../types/api";
+import type { OperationalSettings, PortalSettings, SettingsPayload } from "../../types/api";
 import { formatBytes, formatDate, ROLE_LABELS } from "../../utils/format";
 import { PASSWORD_HINT } from "../auth/PasswordPages";
 import { PROVIDERS, STATUS } from "./CustomerStorage";
@@ -19,6 +19,9 @@ export function StoragePage() {
   const retained = customers.reduce((n, c) => n + (c.byStatus.DELETED?.bytes ?? 0), 0);
   const last30 = dailyUploads.reduce((n, d) => n + d.bytes, 0);
   const peak = Math.max(1, ...dailyUploads.map((d) => d.bytes));
+  // Same rule as the server's storage limit: uploads in progress, documents, and deleted documents not yet purged.
+  const used = (c: (typeof customers)[number]) =>
+    ["PENDING_UPLOAD", "AVAILABLE", "DELETED"].reduce((n, st) => n + (c.byStatus[st]?.bytes ?? 0), 0);
   return (
     <>
       <PageHeader title="Storage" subtitle="Where each customer's documents are stored, and usage recorded in the portal database" />
@@ -33,6 +36,7 @@ export function StoragePage() {
               <tr>
                 <th scope="col">Customer</th>
                 <th scope="col">Stored in</th>
+                <th scope="col">Used / limit</th>
                 <th scope="col">Status</th>
                 <th scope="col">
                   <span className="visually-hidden">Actions</span>
@@ -59,6 +63,12 @@ export function StoragePage() {
                       ) : (
                         "Tekpro platform storage"
                       )}
+                    </td>
+                    <td data-label="Used / limit">
+                      {formatBytes(used(c))} / {c.storageQuotaBytes ? formatBytes(c.storageQuotaBytes) : "no limit"}
+                      {c.storageQuotaBytes ? (
+                        <span className="doc-desc">{formatBytes(Math.max(0, c.storageQuotaBytes - used(c)))} available</span>
+                      ) : null}
                     </td>
                     <td data-label="Status">{status ? <Badge tone={status.tone}>{status.label}</Badge> : <span className="muted">Default</span>}</td>
                     <td data-label="Actions">
@@ -132,62 +142,275 @@ export function StoragePage() {
   );
 }
 
-const SETTING_LABELS: Record<keyof PortalSettings, { label: string; hint: string }> = {
-  staffAuditAccess: { label: "Tekpro Users can view activity of assigned customers", hint: "Audit records limited to customers assigned to each user." },
-  staffCanDeleteDocuments: { label: "Tekpro Users can delete documents", hint: "When off, only the Super Admin can delete documents." },
-  staffCanDeleteFolders: { label: "Tekpro Users can delete folders", hint: "When off, only the Super Admin can delete folders." },
-  customerAdminActivityAccess: { label: "Customer Admins can view their organisation's activity", hint: "Downloads and sign-ins by users of their own organisation." },
-  customerUserActivityAccess: { label: "Customer Users can view their own activity", hint: "Their own downloads and sign-ins." },
-};
+const PERMISSION_GROUPS: { title: string; items: { key: keyof PortalSettings; label: string; hint: string }[] }[] = [
+  {
+    title: "Tekpro staff",
+    items: [
+      { key: "staffAuditAccess", label: "Can see activity logs of their customers", hint: "Only for the customers assigned to each staff member." },
+      { key: "staffCanDeleteDocuments", label: "Can delete documents", hint: "When off, only Super Admins can delete documents." },
+      { key: "staffCanDeleteFolders", label: "Can delete folders", hint: "When off, only Super Admins can delete folders." },
+    ],
+  },
+  {
+    title: "Customer organisations",
+    items: [
+      { key: "customerAdminActivityAccess", label: "Customer admins can see their organisation's activity", hint: "Downloads and sign-ins by people in their own organisation." },
+      {
+        key: "customerAdminCanManageStorage",
+        label: "Customer admins can create and delete their storage bucket",
+        hint: "Only for organisations whose documents are kept in their own AWS account.",
+      },
+      { key: "customerUserActivityAccess", label: "Customer users can see their own activity", hint: "Their own downloads and sign-ins." },
+    ],
+  },
+];
 
-export function SettingsPage() {
-  const data = useAsync(() => settingsApi.get(), []);
+type Unit = { label: string; factor: number };
+const MB: Unit = { label: "MB", factor: 1024 ** 2 };
+const GB: Unit = { label: "GB", factor: 1024 ** 3 };
+const MIN: Unit = { label: "minutes", factor: 60 };
+const HOURS: Unit = { label: "hours", factor: 3600 };
+const DAYS: Unit = { label: "days", factor: 1 };
+
+type NumericKey = Exclude<keyof OperationalSettings, "uploadAllowedExtensions">;
+const LIMIT_GROUPS: { title: string; items: { key: NumericKey; label: string; hint: string; unit: Unit }[] }[] = [
+  {
+    title: "Uploads",
+    items: [
+      { key: "uploadMaxFileSizeBytes", label: "Largest file allowed", hint: "Per file. Up to 5,120 GB.", unit: GB },
+      { key: "uploadMultipartThresholdBytes", label: "Upload large files in parts above", hint: "Bigger files upload in parallel parts that can be retried.", unit: MB },
+      { key: "uploadPartSizeBytes", label: "Size of each upload part", hint: "5 MB to 5,120 MB. At most 10,000 parts per file.", unit: MB },
+      { key: "uploadUrlTtlSeconds", label: "Upload link valid for", hint: "1 to 15 minutes.", unit: MIN },
+      { key: "uploadSessionTtlSeconds", label: "Unfinished uploads are cancelled after", hint: "Abandoned uploads are cleaned up after this time.", unit: HOURS },
+    ],
+  },
+  {
+    title: "Downloads and deleted documents",
+    items: [
+      { key: "downloadUrlTtlSeconds", label: "Download link valid for", hint: "0.5 to 15 minutes. Shorter is safer.", unit: MIN },
+      { key: "deletedDocumentRetentionDays", label: "Keep deleted documents for", hint: "They can be restored during this time, then are removed for good. 0 = remove at once.", unit: DAYS },
+    ],
+  },
+  {
+    title: "Sign-in",
+    items: [
+      { key: "sessionIdleTimeoutSeconds", label: "Sign out after inactivity of", hint: "1 minute to 24 hours.", unit: MIN },
+      { key: "sessionTtlSeconds", label: "Sign in again at the latest after", hint: "Applies to new sign-ins. Up to 30 days.", unit: HOURS },
+    ],
+  },
+];
+
+const fmtUnit = (value: number, unit: Unit) => String(Math.round((value / unit.factor) * 100) / 100);
+
+function PermissionsCard({ settings, onSaved }: { settings: PortalSettings; onSaved: (s: SettingsPayload) => void }) {
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
-  if (data.loading && !data.data) return <Spinner />;
-  if (data.error) return <ErrorState error={data.error} onRetry={data.reload} />;
-  const { settings, configuration } = data.data!;
-
   const toggle = async (key: keyof PortalSettings, value: boolean) => {
     setSaving(key);
     setError(null);
     try {
-      data.setData(await settingsApi.update({ [key]: value }));
+      onSaved(await settingsApi.update({ [key]: value }));
     } catch (err) {
       setError(err);
     } finally {
       setSaving(null);
     }
   };
+  return (
+    <Card title="Who can do what">
+      {error ? <Alert kind="error">{errorMessage(error)}</Alert> : null}
+      {PERMISSION_GROUPS.map((group) => (
+        <div key={group.title} className="settings-group">
+          <h3 className="section-title">{group.title}</h3>
+          <ul className="settings-list">
+            {group.items.map(({ key, label, hint }) => (
+              <li key={key}>
+                <label className="switch-row">
+                  <input type="checkbox" checked={settings[key]} disabled={saving === key} onChange={(e) => toggle(key, e.target.checked)} />
+                  <span>
+                    <span className="switch-label">{label}</span>
+                    <span className="muted small">{hint}</span>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </Card>
+  );
+}
+
+function LimitsCard({ operational, onSaved }: { operational: SettingsPayload["operational"]; onSaved: (s: SettingsPayload) => void }) {
+  const { values, defaults, overridden } = operational;
+  const initial = () => {
+    const out: Record<string, string> = { uploadAllowedExtensions: values.uploadAllowedExtensions.join(", ") };
+    for (const g of LIMIT_GROUPS) for (const i of g.items) out[i.key] = fmtUnit(values[i.key], i.unit);
+    return out;
+  };
+  const [form, setForm] = useState<Record<string, string>>(initial);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [saved, setSaved] = useState(false);
+
+  const parseExtensions = (text: string) => [...new Set(text.split(/[\s,]+/).map((x) => x.trim().toLowerCase().replace(/^\./, "")).filter(Boolean))].sort();
+
+  const changes = () => {
+    const patch: Record<string, number | string[] | null> = {};
+    for (const g of LIMIT_GROUPS) {
+      for (const i of g.items) {
+        const n = Number(form[i.key]);
+        if (form[i.key].trim() === "" || !Number.isFinite(n)) throw new Error(`Enter a number for "${i.label}"`);
+        const v = Math.round(n * i.unit.factor);
+        if (v !== values[i.key]) patch[i.key] = v;
+      }
+    }
+    const ext = parseExtensions(form.uploadAllowedExtensions);
+    if (ext.join(",") !== values.uploadAllowedExtensions.join(",")) patch.uploadAllowedExtensions = ext;
+    return patch;
+  };
+
+  const send = async (patch: Record<string, number | string[] | null>) => {
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const res = await settingsApi.updateOperational(patch);
+      onSaved(res);
+      setSaved(true);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    let patch;
+    try {
+      patch = changes();
+    } catch (err) {
+      return setError(err);
+    }
+    if (!Object.keys(patch).length) return setSaved(true);
+    await send(patch);
+  };
+
+  const reset = async (key: keyof OperationalSettings) => {
+    await send({ [key]: null });
+    const d = defaults[key];
+    setForm((f) => ({
+      ...f,
+      [key]: Array.isArray(d) ? d.join(", ") : fmtUnit(d, LIMIT_GROUPS.flatMap((g) => g.items).find((i) => i.key === key)!.unit),
+    }));
+  };
+
+  const defaultNote = (key: keyof OperationalSettings, shown: string) => (
+    <span className="field-default">
+      {overridden.includes(key) ? (
+        <>
+          Changed from the default ({shown}).
+          <button type="button" className="link-button" onClick={() => void reset(key)} disabled={busy}>
+            Reset to default
+          </button>
+        </>
+      ) : (
+        <>Default</>
+      )}
+    </span>
+  );
+
+  return (
+    <Card title="Limits">
+      <p className="muted small">Changes apply straight away to all users and are recorded in the audit log.</p>
+      <form className="form" onSubmit={submit}>
+        {LIMIT_GROUPS.map((group) => (
+          <div key={group.title} className="settings-group">
+            <h3 className="section-title">{group.title}</h3>
+            <div className="settings-grid">
+              {group.items.map((i) => (
+                <Field key={i.key} label={i.label} hint={i.hint}>
+                  {(id, describedBy) => (
+                    <>
+                      <span className="unit-input">
+                        <Input
+                          id={id}
+                          aria-describedby={describedBy}
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={form[i.key]}
+                          onChange={(e) => setForm((f) => ({ ...f, [i.key]: e.target.value }))}
+                        />
+                        <span>{i.unit.label}</span>
+                      </span>
+                      {defaultNote(i.key, `${fmtUnit(defaults[i.key], i.unit)} ${i.unit.label}`)}
+                    </>
+                  )}
+                </Field>
+              ))}
+            </div>
+            {group.title === "Uploads" && (
+              <Field label="Allowed file types" hint="File extensions separated by commas. Programs and scripts (such as .exe, .js, .html) can never be allowed.">
+                {(id, describedBy) => (
+                  <>
+                    <textarea
+                      id={id}
+                      aria-describedby={describedBy}
+                      className="input"
+                      rows={3}
+                      value={form.uploadAllowedExtensions}
+                      onChange={(e) => setForm((f) => ({ ...f, uploadAllowedExtensions: e.target.value }))}
+                    />
+                    {defaultNote("uploadAllowedExtensions", "the standard document, image and archive types")}
+                  </>
+                )}
+              </Field>
+            )}
+          </div>
+        ))}
+        {error ? <Alert kind="error">{errorMessage(error)}</Alert> : null}
+        <div className="form-actions">
+          <Button type="submit" variant="primary" loading={busy}>
+            Save limits
+          </Button>
+          {saved && !busy && <span className="muted small">Saved</span>}
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+const STORAGE_NAMES: Record<string, string> = { s3: "Amazon S3-compatible bucket (Lightsail)", memory: "Test storage (in memory)" };
+const MAIL_NAMES: Record<string, string> = {
+  smtp: "Sent by email (SMTP)",
+  console: "Printed in the server log (development only)",
+  disabled: "Off: invitation and reset links are shown to admins instead",
+};
+
+export function SettingsPage() {
+  const data = useAsync(() => settingsApi.get(), []);
+  if (data.loading && !data.data) return <Spinner />;
+  if (data.error) return <ErrorState error={data.error} onRetry={data.reload} />;
+  const { settings, operational, environment } = data.data!;
 
   return (
     <>
-      <PageHeader title="System settings" subtitle="Changes are recorded in the audit log" />
-      {error ? <Alert kind="error">{errorMessage(error)}</Alert> : null}
-      <Card title="Access policy">
-        <ul className="settings-list">
-          {(Object.keys(SETTING_LABELS) as (keyof PortalSettings)[]).map((key) => (
-            <li key={key}>
-              <label className="switch-row">
-                <input type="checkbox" checked={settings[key]} disabled={saving === key} onChange={(e) => toggle(key, e.target.checked)} />
-                <span>
-                  <span className="switch-label">{SETTING_LABELS[key].label}</span>
-                  <span className="muted small">{SETTING_LABELS[key].hint}</span>
-                </span>
-              </label>
-            </li>
-          ))}
-        </ul>
-      </Card>
-      <Card title="Deployment configuration (read-only)">
-        <p className="muted small">These values come from the server environment and are changed by redeploying with new configuration.</p>
+      <PageHeader title="Settings" subtitle="Changes take effect immediately and are recorded in the audit log" />
+      <PermissionsCard settings={settings} onSaved={(s) => data.setData(s)} />
+      <LimitsCard operational={operational} onSaved={(s) => data.setData(s)} />
+      <Card title="Server setup">
+        <p className="muted small">
+          These depend on the server's own configuration and secrets (bucket keys, email password), so they are set where the portal is deployed, not here.
+        </p>
         <dl className="details">
-          {Object.entries(configuration).map(([k, v]) => (
-            <div key={k} className="details-row">
-              <dt>{k}</dt>
-              <dd>{typeof v === "number" && /Bytes$/.test(k) ? formatBytes(v) : Array.isArray(v) ? v.join(", ") : String(v)}</dd>
-            </div>
-          ))}
+          <dt>Document storage</dt>
+          <dd>{STORAGE_NAMES[environment.storageDriver] ?? environment.storageDriver}</dd>
+          <dt>Emails (invitations, password resets)</dt>
+          <dd>{MAIL_NAMES[environment.mailDriver] ?? environment.mailDriver}</dd>
+          <dt>Background clean-up</dt>
+          <dd>{environment.jobsEnabled ? "Runs inside the portal every 15 minutes" : "Runs as a separate scheduled task"}</dd>
         </dl>
       </Card>
     </>

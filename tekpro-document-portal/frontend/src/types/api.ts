@@ -32,6 +32,7 @@ export interface MePayload {
 
 export interface Customer extends CustomerRef {
   status: "ACTIVE" | "INACTIVE";
+  storageQuotaBytes?: number | null;
   createdAt: string;
   updatedAt: string;
   documentCount?: number;
@@ -100,6 +101,38 @@ export interface PortalSettings {
   staffCanDeleteFolders: boolean;
   customerAdminActivityAccess: boolean;
   customerUserActivityAccess: boolean;
+  customerAdminCanManageStorage: boolean;
+}
+
+/** Upload, download, retention and sign-in limits a Super Admin can change at runtime. */
+export interface OperationalSettings {
+  uploadMaxFileSizeBytes: number;
+  uploadMultipartThresholdBytes: number;
+  uploadPartSizeBytes: number;
+  uploadAllowedExtensions: string[];
+  uploadUrlTtlSeconds: number;
+  uploadSessionTtlSeconds: number;
+  downloadUrlTtlSeconds: number;
+  deletedDocumentRetentionDays: number;
+  sessionTtlSeconds: number;
+  sessionIdleTimeoutSeconds: number;
+}
+
+export interface SettingsPayload {
+  settings: PortalSettings;
+  operational: { values: OperationalSettings; defaults: OperationalSettings; overridden: (keyof OperationalSettings)[] };
+  environment: { storageDriver: string; mailDriver: string; jobsEnabled: boolean };
+}
+
+export interface StorageUsage {
+  usedBytes: number;
+  documents: { count: number; bytes: number };
+  deletedPendingPurge: { count: number; bytes: number };
+  uploading: { count: number; bytes: number };
+  quotaBytes: number | null;
+  availableBytes: number | null;
+  location: { mode: "PLATFORM" } | { mode: "CUSTOMER"; provider: StorageProvider; bucket: string; region: string; status: ConnectorStatus };
+  bucketManagement: { allowed: boolean; available: boolean; bucketPrefix: string; documentsInBucket: number };
 }
 
 export interface UploadInitiation {
@@ -147,7 +180,7 @@ export interface StorageConnectorView {
   connector: StorageConnector | null;
   portalPrincipalArn?: string | null;
   portalIdentityError?: string | null;
-  setup?: { trustPolicy: object | null; permissionsPolicy: object; corsConfiguration: object };
+  setup?: { trustPolicy: object | null; permissionsPolicy: object; bucketPrefix: string; bucketManagementPolicy: object; corsConfiguration: object };
 }
 
 export interface ConnectorInput {

@@ -20,7 +20,12 @@ const codeSchema = z
   .regex(/^[A-Z0-9][A-Z0-9_-]{1,31}$/, "Customer code must be 2-32 characters: letters, digits, '-' or '_'");
 const createSchema = z.object({ name: z.string().trim().min(1).max(200), customerCode: codeSchema });
 const updateSchema = z
-  .object({ name: z.string().trim().min(1).max(200).optional(), status: z.enum(["ACTIVE", "INACTIVE"]).optional() })
+  .object({
+    name: z.string().trim().min(1).max(200).optional(),
+    status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
+    // Whole bytes, at most 1 PiB; null removes the limit.
+    storageQuotaBytes: z.number().int().positive().max(2 ** 50).nullable().optional(),
+  })
   .strict();
 const assignSchema = z.object({ userId: z.uuid() });
 
@@ -104,7 +109,25 @@ export function customersRoutes(s: Services): Router {
     const existing = await s.prisma.customer.findUnique({ where: { id: customerId } });
     if (!existing) throw notFound("Customer");
     const updated = await s.prisma.$transaction(async (tx) => {
-      const c = await tx.customer.update({ where: { id: customerId }, data: body });
+      const { storageQuotaBytes, ...rest } = body;
+      const c = await tx.customer.update({
+        where: { id: customerId },
+        data: { ...rest, ...(storageQuotaBytes !== undefined ? { storageQuotaBytes: storageQuotaBytes === null ? null : BigInt(storageQuotaBytes) } : {}) },
+      });
+      const fromQuota = existing.storageQuotaBytes === null ? null : Number(existing.storageQuotaBytes);
+      if (storageQuotaBytes !== undefined && storageQuotaBytes !== fromQuota) {
+        await s.audit.fromRequest(
+          req,
+          {
+            action: AuditAction.STORAGE_QUOTA_CHANGED,
+            resourceType: "Customer",
+            resourceId: customerId,
+            customerId,
+            metadata: { fromBytes: fromQuota, toBytes: storageQuotaBytes },
+          },
+          tx,
+        );
+      }
       if (body.status && body.status !== existing.status) {
         if (body.status === "INACTIVE") {
           // Customer users lose access immediately.

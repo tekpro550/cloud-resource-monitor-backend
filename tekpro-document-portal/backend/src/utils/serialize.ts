@@ -20,7 +20,15 @@ export function serializeUser(u: User & { customer?: Pick<Customer, "id" | "name
 }
 
 export function serializeCustomer(c: Customer) {
-  return { id: c.id, name: c.name, customerCode: c.customerCode, status: c.status, createdAt: c.createdAt, updatedAt: c.updatedAt };
+  return {
+    id: c.id,
+    name: c.name,
+    customerCode: c.customerCode,
+    status: c.status,
+    storageQuotaBytes: c.storageQuotaBytes === null ? null : Number(c.storageQuotaBytes),
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt,
+  };
 }
 
 export function serializeFolder(f: Folder, viewerRole: Role) {

@@ -17,6 +17,7 @@ import { healthRoutes } from "./modules/health/health.routes.js";
 import { settingsRoutes } from "./modules/settings/settings.routes.js";
 import { statsRoutes } from "./modules/stats/stats.routes.js";
 import { storageConnectorRoutes } from "./modules/storageConnectors/storageConnectors.routes.js";
+import { storageUsageRoutes } from "./modules/storageUsage/storageUsage.js";
 import { uploadsRoutes } from "./modules/uploads/uploads.routes.js";
 import { usersRoutes } from "./modules/users/users.routes.js";
 import { createServices, type Services } from "./services.js";
@@ -140,6 +141,7 @@ export function createApp(ctx: AppContext): { app: Express; services: Services }
   const connectors = storageConnectorRoutes(s);
   v1.use("/customers/:customerId/storage-connector", connectors.customerScoped);
   v1.use("/storage-connectors", connectors.global);
+  v1.use("/customers/:customerId/storage-usage", storageUsageRoutes(s));
   v1.use("/customers", customersRoutes(s));
   v1.use("/users", usersRoutes(s));
   v1.use("/folders", folders.folderScoped);

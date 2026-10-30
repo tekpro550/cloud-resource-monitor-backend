@@ -52,6 +52,17 @@ export interface StorageAdapter {
   readObjectPrefix(key: string, length: number): Promise<Uint8Array>;
   deleteObject(key: string): Promise<void>;
   listObjects(prefix: string, continuationToken?: string): Promise<{ objects: ListedObject[]; nextToken?: string }>;
+  /**
+   * Creates this adapter's bucket as private storage for the portal: all public access
+   * blocked, bucket-owner object ownership, default encryption (SSE-S3), versioning,
+   * and a CORS rule for `corsOrigin`. Used for customer-owned buckets only.
+   */
+  createBucket?(opts: { region: string; corsOrigin: string }): Promise<void>;
+  /**
+   * Deletes every object version and delete marker under `prefix` (the portal's own
+   * objects), then the bucket. Fails with BUCKET_NOT_EMPTY if anything else remains.
+   */
+  deleteBucket?(opts: { prefix: string }): Promise<void>;
 }
 
 export function objectKeyFor(customerId: string, documentId: string): string {
@@ -69,6 +80,9 @@ export type StorageErrorKind =
   | "INCOMPLETE_UPLOAD"
   | "UNAVAILABLE"
   | "INVALID_REQUEST"
+  | "BUCKET_EXISTS"
+  | "BUCKET_NAME_TAKEN"
+  | "BUCKET_NOT_EMPTY"
   | "UNKNOWN";
 
 /**

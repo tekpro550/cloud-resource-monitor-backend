@@ -131,6 +131,8 @@ model Customer {
   name         String
   customerCode String         @unique
   status       CustomerStatus @default(ACTIVE)
+  /// Optional storage limit set by a Super Admin; uploads beyond it are refused. Null = no limit.
+  storageQuotaBytes BigInt?
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 

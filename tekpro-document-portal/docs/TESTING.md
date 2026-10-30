@@ -45,8 +45,8 @@ Environment: Linux, Node.js 22.22, PostgreSQL 16 (local), moto 5 S3 emulator (lo
 |---|---|
 | `npm run lint` | pass |
 | `npm run typecheck` (backend + frontend) | pass |
-| Backend unit + integration + security | **198 passed** (12 files, incl. 42 storage-connector tests) |
-| Frontend | **25 passed** (3 files) |
+| Backend unit + integration + security | **214 passed** (13 files, incl. 42 storage-connector and 16 storage limit / bucket management / runtime settings tests) |
+| Frontend | **38 passed** (4 files) |
 | Storage integration vs moto S3/STS emulator | **9 passed**, 3 skipped (strict provider checks need a real bucket); includes the cross-account role connector end to end (AssumeRole + External ID, session-token URLs, verification, upload, download) |
 | `npm run build` | pass (API compiled, SPA built) |
 | Browser smoke test vs local stack (API in development mode serving the built SPA, PostgreSQL, moto with CORS) | **13/13 steps passed**: Super Admin sign-in, create customer, create folder, single + 7 MiB multipart direct uploads verified by the server, disguised `.pdf` executable rejected, invite customer user, grant DOWNLOAD, set password via invitation and sign in on a mobile viewport, customer sees no management controls, pre-signed download with byte-for-byte comparison, admin page and upload API refused for the customer, download visible in audit log, no CSP/CORS console errors |

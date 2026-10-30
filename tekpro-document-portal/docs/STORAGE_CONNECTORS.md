@@ -82,9 +82,23 @@ Tekpro storage and remain downloadable (each document remembers where it is stor
 | Disable | Stops new uploads immediately; existing documents remain downloadable |
 | Enable | Returns to *Needs verification* |
 | Remove | Only when no document records reference the connector; new uploads then go to Tekpro storage |
+| Create new bucket (Storage tab, or the Customer Admin's **Storage** page) | Needs the *bucket management policy* on the customer's role. Names start with `tekpro-<customer code>-`. Only when the current bucket holds no documents; the old bucket is left as it is. The new bucket is checked straight away |
+| Delete bucket | Type the bucket name to confirm. Only when no documents use it and it holds nothing but the portal's own files; removes those (and their old versions), deletes the bucket and the connection |
 | Customer revokes the role/key | Downloads and uploads for that customer fail with "storage temporarily unavailable"; reconciliation reports the bucket as unreachable |
 
 All of these are recorded in the audit log (`storage_connector.*`).
+
+**Who can create and delete buckets:** Super Admins, and a customer's own Customer Admins while the setting
+*Customer admins can create and delete their storage bucket* is on (Settings → Who can do what; on by default).
+Connecting the customer's AWS account in the first place (role ARN or access key) stays with Super Admins.
+
+**Bucket management policy:** shown in the Storage tab's setup instructions for IAM-role connections. It replaces the
+permissions policy and covers every bucket named `tekpro-<code>-*`: create (with the private settings), delete, and
+document access only under `customers/<customerId>/`. Without it, the customer creates buckets themselves.
+
+**Storage limit:** S3 buckets have no fixed size, so "available space" comes from an optional per-customer limit set by
+a Super Admin (Storage tab → *Set a limit*). Uploads that would exceed it are refused (`STORAGE_QUOTA_EXCEEDED`).
+Uploads in progress and deleted documents awaiting purge count towards it. The limit applies to platform storage too.
 
 ## 4. Tekpro-side configuration
 

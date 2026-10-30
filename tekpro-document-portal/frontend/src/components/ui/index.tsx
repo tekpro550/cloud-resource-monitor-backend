@@ -231,6 +231,10 @@ export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: 
 export function Modal({ title, onClose, children, footer, size = "md" }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; size?: "md" | "lg" }) {
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  // Latest onClose without re-running the effect: callers often pass a new function on
+  // every render, which would otherwise move focus back to the first control on each keystroke.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const el = ref.current;
@@ -238,7 +242,7 @@ export function Modal({ title, onClose, children, footer, size = "md" }: { title
       el ? Array.from(el.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')).filter((x) => !x.hasAttribute("disabled")) : [];
     (focusable()[0] ?? el)?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
       if (e.key === "Tab") {
         const items = focusable();
         if (!items.length) return;
@@ -258,7 +262,7 @@ export function Modal({ title, onClose, children, footer, size = "md" }: { title
       document.removeEventListener("keydown", onKey);
       previous?.focus();
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>

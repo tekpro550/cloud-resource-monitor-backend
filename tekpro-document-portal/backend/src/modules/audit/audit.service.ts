@@ -53,6 +53,9 @@ export const AuditAction = {
   STORAGE_CONNECTOR_DISABLED: "storage_connector.disabled",
   STORAGE_CONNECTOR_ENABLED: "storage_connector.enabled",
   STORAGE_CONNECTOR_DELETED: "storage_connector.deleted",
+  STORAGE_BUCKET_CREATED: "storage_connector.bucket_created",
+  STORAGE_BUCKET_DELETED: "storage_connector.bucket_deleted",
+  STORAGE_QUOTA_CHANGED: "customer.storage_quota_changed",
   STORAGE_MISPLACED_OBJECT: "storage.misplaced_object",
 } as const;
 
@@ -89,7 +92,9 @@ export function sanitizeMetadata(value: unknown, depth = 0): unknown {
     if (depth > 4) return "[truncated]";
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      out[k] = SENSITIVE_KEY.test(k) ? "[REDACTED]" : sanitizeMetadata(v, depth + 1);
+      // Numbers and booleans (e.g. a URL lifetime in seconds) cannot carry a secret or a link.
+      const harmless = typeof v === "number" || typeof v === "boolean";
+      out[k] = SENSITIVE_KEY.test(k) && !harmless ? "[REDACTED]" : sanitizeMetadata(v, depth + 1);
     }
     return out;
   }

@@ -27,6 +27,7 @@ export function navItemsFor(role: Role, activityAccess: boolean): NavItem[] {
   } else {
     items.push({ to: "/documents", label: "Documents" });
     if (activityAccess) items.push({ to: "/activity", label: "Activity" });
+    if (role === "CUSTOMER_ADMIN") items.push({ to: "/organisation-storage", label: "Storage" });
   }
   items.push({ to: "/account", label: "My account" });
   return items;

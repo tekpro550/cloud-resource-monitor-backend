@@ -11,6 +11,7 @@ import { serializeDocument } from "../../utils/serialize.js";
 import type { Principal } from "../../types/context.js";
 import { AuditAction } from "../audit/audit.service.js";
 import { AccessDeniedError } from "../permissions/accessPolicy.js";
+import { assertWithinQuota } from "../storageUsage/storageUsage.js";
 import { checkContent, mimeTypeForExtension, SNIFF_BYTES } from "./fileTypes.js";
 
 const MIN_PART_SIZE = 5 * 1024 * 1024; // S3 minimum for every part except the last
@@ -84,6 +85,7 @@ export function uploadsRoutes(s: Services): { customerScoped: Router; uploadScop
     // The customer's own storage connector when configured (must be ACTIVE), else platform storage.
     const target = await s.storageResolver.uploadTarget(customerId);
     const session = await s.prisma.$transaction(async (tx) => {
+      await assertWithinQuota(tx, customerId, body.sizeBytes);
       await tx.document.create({
         data: {
           id: documentId,

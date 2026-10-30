@@ -19,7 +19,9 @@ type Operation =
   | "headObject"
   | "readObjectPrefix"
   | "deleteObject"
-  | "listObjects";
+  | "listObjects"
+  | "createBucket"
+  | "deleteBucket";
 
 interface StoredObject {
   body: Uint8Array;
@@ -83,6 +85,28 @@ export class MemoryStorageAdapter implements StorageAdapter {
 
   async checkConnectivity(): Promise<void> {
     this.maybeFail("checkConnectivity");
+  }
+
+  /** Set by createBucket; tests may set `bucketExists` to simulate an existing bucket. */
+  bucketExists = false;
+  createdBucket: { region: string; corsOrigin: string } | null = null;
+
+  async createBucket(opts: { region: string; corsOrigin: string }): Promise<void> {
+    this.maybeFail("createBucket");
+    if (this.bucketExists) throw new StorageError("BUCKET_EXISTS", "Storage CreateBucket failed (BucketAlreadyOwnedByYou)", false);
+    this.bucketExists = true;
+    this.createdBucket = opts;
+    this.cors = { allowOrigin: opts.corsOrigin, exposeEtag: true };
+  }
+
+  bucketDeleted = false;
+
+  async deleteBucket(opts: { prefix: string }): Promise<void> {
+    this.maybeFail("deleteBucket");
+    for (const key of [...this.objects.keys()]) if (key.startsWith(opts.prefix)) this.objects.delete(key);
+    if (this.objects.size) throw new StorageError("BUCKET_NOT_EMPTY", "Storage DeleteBucket failed (BucketNotEmpty)", false);
+    this.bucketExists = false;
+    this.bucketDeleted = true;
   }
 
   private presigned(method: "PUT" | "GET", key: string, ttl: number, extra: string, headers: Record<string, string> = {}): PresignedRequest {

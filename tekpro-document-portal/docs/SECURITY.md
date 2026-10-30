@@ -23,6 +23,14 @@ key-bound requests), API ↔ PostgreSQL / storage (trusted, credentialled).
 | Download | ✔ | assigned | non-hidden folders | granted folders (DOWNLOAD) |
 | Set folder visibility and customer-user grants | ✔ | ✘ | ✘ | ✘ |
 | Audit / activity | all | assigned customers (if enabled) | own organisation's downloads/logins (if enabled) | own downloads/logins (if enabled) |
+| See storage space used / limit | all | assigned | own organisation | ✘ |
+| Set storage limit, connect customer storage, change limits in Settings | ✔ | ✘ | ✘ | ✘ |
+| Create / delete the customer's own bucket | ✔ | ✘ | own organisation (if enabled), only in the customer's AWS account | ✘ |
+
+Bucket management by Customer Admins acts only on their own organisation's connected AWS account, needs the
+bucket management policy on the customer's role, is limited to bucket names `tekpro-<code>-*`, and never deletes a
+bucket that holds documents or files the portal did not create. Runtime limits (Settings → Limits) are range-checked
+on the server: pre-signed URLs never exceed 15 minutes, and executable or script file types can never be allowed.
 
 All rules are enforced by `AccessPolicy` on the server. The frontend hides unavailable actions purely
 for usability. Automated tests call the API directly to prove the backend rejects every

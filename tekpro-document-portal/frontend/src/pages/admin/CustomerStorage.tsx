@@ -164,7 +164,7 @@ function ConnectorForm({ customerId, existing, onSaved, onCancel }: { customerId
 }
 
 /** Super Admin: choose where this customer's documents are stored. */
-export function CustomerStorage({ customerId }: { customerId: string }) {
+export function CustomerStorage({ customerId, onChanged }: { customerId: string; onChanged?: () => void }) {
   const view = useAsync(() => storageConnectorApi.get(customerId), [customerId]);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -182,6 +182,7 @@ export function CustomerStorage({ customerId }: { customerId: string }) {
     try {
       await fn();
       view.reload();
+      onChanged?.();
     } catch (err) {
       setActionError(err);
     } finally {
@@ -191,7 +192,7 @@ export function CustomerStorage({ customerId }: { customerId: string }) {
 
   if (!connector || editing) {
     return (
-      <Card title={connector ? "Edit storage connection" : "Document storage"}>
+      <Card title={connector ? "Edit connection to customer storage" : "Connect customer storage"}>
         {!connector && (
           <p>
             This customer's documents are stored in <strong>Tekpro platform storage</strong>. To keep them in a bucket the customer owns (for example in their own AWS
@@ -205,6 +206,7 @@ export function CustomerStorage({ customerId }: { customerId: string }) {
             setEditing(false);
             setLastResult(null);
             view.reload();
+            onChanged?.();
           }}
           onCancel={connector ? () => setEditing(false) : undefined}
         />
@@ -219,7 +221,7 @@ export function CustomerStorage({ customerId }: { customerId: string }) {
       <Card
         title={
           <>
-            Customer-owned storage <Badge tone={status.tone}>{status.label}</Badge>
+            Connection to customer storage <Badge tone={status.tone}>{status.label}</Badge>
           </>
         }
         actions={
@@ -311,6 +313,17 @@ export function CustomerStorage({ customerId }: { customerId: string }) {
           )}
           <CopyBlock title={connector.authType === "ASSUME_ROLE" ? "Permissions policy" : "Minimum permissions (for an IAM user, if not Lightsail)"} value={setup.permissionsPolicy} />
           <CopyBlock title="Bucket CORS rule" value={setup.corsConfiguration} />
+          {connector.authType === "ASSUME_ROLE" && connector.provider !== "LIGHTSAIL" && (
+            <>
+              <h3 className="section-title">Optional: let the portal create and delete buckets</h3>
+              <p className="muted small">
+                Attach this policy <em>instead of</em> the permissions policy above. It lets Super Admins and the customer's own admins create and delete buckets
+                named <code>{setup.bucketPrefix}…</code> from the portal (private, encrypted, versioned), and gives document access only under{" "}
+                <code>{connector.prefix}</code> in those buckets.
+              </p>
+              <CopyBlock title="Bucket management policy" value={setup.bucketManagementPolicy} />
+            </>
+          )}
         </Card>
       )}
 
