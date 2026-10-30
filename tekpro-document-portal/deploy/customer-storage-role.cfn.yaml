@@ -1,0 +1,122 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Grants the Tekpro Document Portal access to one folder (prefix) of a bucket in
+  this AWS account, via a cross-account IAM role protected by an External ID.
+  Values for every parameter are shown in the portal: Customers > (customer) > Storage.
+
+Parameters:
+  TekproPrincipalArn:
+    Type: String
+    Description: Tekpro AWS principal shown in the portal ("Tekpro AWS principal").
+    AllowedPattern: "^arn:aws[a-z-]*:(iam|sts)::\\d{12}:.+$"
+  ExternalId:
+    Type: String
+    Description: External ID shown in the portal for this customer.
+    MinLength: 10
+    NoEcho: false
+  CustomerPrefix:
+    Type: String
+    Description: Folder used by the portal, e.g. customers/<id>/ (shown as "Folder used").
+    AllowedPattern: "^customers/[0-9a-f-]{36}/$"
+  BucketName:
+    Type: String
+    Description: Bucket that will hold the documents.
+    AllowedPattern: "^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$"
+  CreateBucket:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "true"
+    Description: >
+      "true" creates a new private, encrypted, versioned bucket with the CORS rule.
+      "false" uses an existing bucket (add the CORS rule from the portal yourself).
+  PortalOrigin:
+    Type: String
+    Description: Portal web address allowed to upload from browsers, e.g. https://portal.tekpro.example
+    AllowedPattern: "^https?://[^/]+$"
+  RoleName:
+    Type: String
+    Default: TekproPortalAccess
+
+Conditions:
+  MakeBucket: !Equals [!Ref CreateBucket, "true"]
+
+Resources:
+  DocumentsBucket:
+    Type: AWS::S3::Bucket
+    Condition: MakeBucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref BucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: abort-incomplete-uploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 2
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: [!Ref PortalOrigin]
+            AllowedMethods: [PUT, GET, HEAD]
+            AllowedHeaders: ["*"]
+            ExposedHeaders: [ETag]
+            MaxAge: 3000
+
+  PortalRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowTekproDocumentPortal
+            Effect: Allow
+            Principal:
+              AWS: !Ref TekproPrincipalArn
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+      Policies:
+        - PolicyName: TekproPortalPrefixAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: PortalObjectAccess
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                  - s3:AbortMultipartUpload
+                  - s3:ListMultipartUploadParts
+                Resource: !Sub "arn:${AWS::Partition}:s3:::${BucketName}/${CustomerPrefix}*"
+              - Sid: PortalListOwnPrefix
+                Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub "arn:${AWS::Partition}:s3:::${BucketName}"
+                Condition:
+                  StringLike:
+                    s3:prefix: [!Sub "${CustomerPrefix}*"]
+
+Outputs:
+  RoleArn:
+    Description: Enter this Role ARN in the portal, then click "Verify connection".
+    Value: !GetAtt PortalRole.Arn
+  Bucket:
+    Value: !Ref BucketName

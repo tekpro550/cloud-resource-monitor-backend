@@ -10,7 +10,7 @@ export async function purgeDocument(s: Services, documentId: string): Promise<bo
   const doc = await s.prisma.document.findUnique({ where: { id: documentId } });
   if (!doc || doc.status !== "DELETED") return false;
   try {
-    await s.storage.deleteObject(doc.objectKey);
+    await (await s.storageResolver.forDocument(doc)).deleteObject(doc.objectKey);
   } catch (err) {
     await s.prisma.document.update({ where: { id: documentId }, data: { purgeAttempts: { increment: 1 } } });
     await s.audit.record({

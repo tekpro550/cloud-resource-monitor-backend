@@ -63,7 +63,7 @@ describe("maintenance jobs", () => {
     h.storage.objects.delete(seed.docs.contract.objectKey);
 
     const report = await reconcileStorage(h.services, { fix: false });
-    expect(report.orphanObjects).toEqual([orphanKey]);
+    expect(report.orphanObjects).toEqual([`platform:${orphanKey}`]);
     expect(report.missingObjects).toEqual([seed.docs.contract.id]);
     expect(report.removed).toBe(0);
     expect(h.storage.objects.has(orphanKey)).toBe(true);

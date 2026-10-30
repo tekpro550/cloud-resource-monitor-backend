@@ -23,6 +23,7 @@ Tekpro staff upload documents to **Amazon Lightsail Object Storage**; customer u
 | Downloads | Authorisation chain then a 5-minute (configurable) pre-signed URL that forces `Content-Disposition: attachment`; "link issued" is audited (completion is not claimed) |
 | Documents | Search, type/date/folder filters, sorting, server-side pagination, rename, move, soft delete with retention, restore, purge job |
 | Audit | Append-only audit log (enforced by a DB trigger) covering logins, user/customer/assignment/permission changes, uploads, downloads, document and folder changes, denied access, settings changes |
+| Customer-owned storage | Per-customer **storage connector**: keep a customer's documents in their own AWS S3 bucket (cross-account IAM role + External ID, no stored secrets), Lightsail bucket or S3-compatible service (encrypted access key); live verification, CloudFormation template for customers, per-document storage tracking. See [docs/STORAGE_CONNECTORS.md](docs/STORAGE_CONNECTORS.md) |
 | Operations | Health/readiness endpoints, structured JSON logs with secret redaction, storage diagnostics CLI, maintenance jobs (expire uploads, purge, prune), storage/DB reconciliation |
 | UI | React SPA: login, password reset, role-specific dashboards, customer/user/assignment management, document explorer, uploads with progress, audit log, storage statistics, system settings; responsive and keyboard accessible |
 
@@ -120,6 +121,7 @@ Backend tests need a disposable PostgreSQL database whose name contains `test`
 
 - [docs/PRD.md](docs/PRD.md) – product requirements
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) – components, data flows, upload/download, failure recovery
+- [docs/STORAGE_CONNECTORS.md](docs/STORAGE_CONNECTORS.md) – customer-owned storage (IAM role / access key connectors)
 - [docs/API.md](docs/API.md) – endpoints, permissions, parameters, responses, error codes
 - [docs/SECURITY.md](docs/SECURITY.md) – threat model, permission model, known limitations
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) – step-by-step production deployment on Lightsail

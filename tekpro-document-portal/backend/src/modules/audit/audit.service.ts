@@ -46,6 +46,14 @@ export const AuditAction = {
   STORAGE_ORPHAN_REMOVED: "storage.orphan_removed",
   ACCESS_DENIED: "security.access_denied",
   SETTINGS_CHANGED: "settings.changed",
+  STORAGE_CONNECTOR_CREATED: "storage_connector.created",
+  STORAGE_CONNECTOR_UPDATED: "storage_connector.updated",
+  STORAGE_CONNECTOR_VERIFIED: "storage_connector.verified",
+  STORAGE_CONNECTOR_VERIFICATION_FAILED: "storage_connector.verification_failed",
+  STORAGE_CONNECTOR_DISABLED: "storage_connector.disabled",
+  STORAGE_CONNECTOR_ENABLED: "storage_connector.enabled",
+  STORAGE_CONNECTOR_DELETED: "storage_connector.deleted",
+  STORAGE_MISPLACED_OBJECT: "storage.misplaced_object",
 } as const;
 
 export type AuditActionValue = (typeof AuditAction)[keyof typeof AuditAction];

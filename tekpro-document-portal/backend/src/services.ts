@@ -2,6 +2,7 @@ import { AuditService } from "./modules/audit/audit.service.js";
 import { AuthService } from "./modules/auth/auth.service.js";
 import { AccessPolicy } from "./modules/permissions/accessPolicy.js";
 import { SettingsService } from "./modules/settings/settings.service.js";
+import { StorageResolver } from "./storage/resolver.js";
 import type { AppContext } from "./types/context.js";
 
 export interface Services extends AppContext {
@@ -9,6 +10,7 @@ export interface Services extends AppContext {
   settings: SettingsService;
   policy: AccessPolicy;
   auth: AuthService;
+  storageResolver: StorageResolver;
 }
 
 export function createServices(ctx: AppContext): Services {
@@ -16,5 +18,6 @@ export function createServices(ctx: AppContext): Services {
   const settings = new SettingsService(ctx.prisma);
   const policy = new AccessPolicy(ctx.prisma, settings);
   const auth = new AuthService(ctx, audit);
-  return { ...ctx, audit, settings, policy, auth };
+  const storageResolver = new StorageResolver(ctx.prisma, ctx.config, ctx.storage, ctx.connectorAdapterFactory);
+  return { ...ctx, audit, settings, policy, auth, storageResolver };
 }

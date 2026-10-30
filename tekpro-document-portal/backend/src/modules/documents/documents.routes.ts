@@ -142,7 +142,7 @@ export function documentsRoutes(s: Services): { customerScoped: Router; document
     const doc = await s.policy.requireDocument(p, documentId, "DOWNLOAD");
     if (doc.status !== "AVAILABLE") throw invalidState("This document is not available for download");
     const ttl = s.config.downloadUrlTtlSeconds;
-    const signed = await s.storage.presignGet(doc.objectKey, {
+    const signed = await (await s.storageResolver.forDocument(doc)).presignGet(doc.objectKey, {
       expiresInSeconds: ttl,
       contentDisposition: attachmentContentDisposition(doc.displayName),
       // Always served as a download; never rendered inline by the storage origin.
@@ -251,7 +251,7 @@ export function documentsRoutes(s: Services): { customerScoped: Router; document
     const p = principal(req);
     const doc = await s.policy.requireDocument(p, documentId, "MANAGE");
     if (doc.status !== "DELETED") throw invalidState("Only deleted documents can be restored");
-    const head = await s.storage.headObject(doc.objectKey);
+    const head = await (await s.storageResolver.forDocument(doc)).headObject(doc.objectKey);
     if (!head) throw invalidState("The stored file no longer exists and cannot be restored");
     let folderId = doc.folderId;
     const folder = await s.prisma.folder.findUnique({ where: { id: folderId } });

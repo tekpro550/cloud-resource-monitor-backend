@@ -10,6 +10,7 @@ import { hashPassword } from "../../src/modules/auth/password.js";
 import type { Services } from "../../src/services.js";
 import { MemoryStorageAdapter } from "../../src/storage/memoryStorage.js";
 import { objectKeyFor } from "../../src/storage/storage.js";
+import { fakeFetch } from "./fakeFetch.js";
 
 export const PASSWORD = "Correct-Horse-Battery-9";
 
@@ -33,6 +34,7 @@ export function testConfig(overrides: Record<string, string> = {}): AppConfig {
     UPLOAD_MULTIPART_THRESHOLD_BYTES: String(6 * 1024 * 1024),
     UPLOAD_PART_SIZE_BYTES: String(5 * 1024 * 1024),
     UPLOAD_MAX_FILE_SIZE_BYTES: String(1024 * 1024 * 1024),
+    CONNECTOR_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
     ...overrides,
   });
 }
@@ -40,16 +42,28 @@ export function testConfig(overrides: Record<string, string> = {}): AppConfig {
 export interface TestHarness {
   app: Express;
   services: Services;
+  /** Platform storage. */
   storage: MemoryStorageAdapter;
+  /** Storage behind every customer connector (simulates the customer's own bucket). */
+  connectorStorage: MemoryStorageAdapter;
   mailer: RecordingMailer;
 }
 
 export function createTestApp(overrides: Record<string, string> = {}): TestHarness {
   const config = testConfig(overrides);
   const storage = new MemoryStorageAdapter();
+  const connectorStorage = new MemoryStorageAdapter("customer-bucket.invalid");
   const mailer = new RecordingMailer();
-  const { app, services } = createApp({ config, prisma: prisma(), storage, mailer, logger: pino({ level: "silent" }) });
-  return { app, services, storage, mailer };
+  const { app, services } = createApp({
+    config,
+    prisma: prisma(),
+    storage,
+    mailer,
+    logger: pino({ level: "silent" }),
+    connectorAdapterFactory: () => connectorStorage,
+    fetch: fakeFetch(storage, connectorStorage),
+  });
+  return { app, services, storage, connectorStorage, mailer };
 }
 
 /** Empties every table. The audit-log immutability trigger is bypassed only here. */
@@ -59,7 +73,7 @@ export async function resetDb(): Promise<void> {
   await db.$executeRawUnsafe(`ALTER TABLE "AuditLog" DISABLE TRIGGER USER`);
   await db.$executeRawUnsafe(
     `TRUNCATE "AuditLog", "UploadSession", "Document", "CustomerUserFolderPermission", "Folder",
-      "TekproUserCustomerAssignment", "Session", "PasswordToken", "SystemSetting", "User", "Customer" CASCADE`,
+      "TekproUserCustomerAssignment", "Session", "PasswordToken", "SystemSetting", "StorageConnector", "User", "Customer" CASCADE`,
   );
   await db.$executeRawUnsafe(`ALTER TABLE "AuditLog" ENABLE TRIGGER USER`);
 }

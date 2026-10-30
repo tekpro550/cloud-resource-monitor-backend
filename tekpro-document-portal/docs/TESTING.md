@@ -45,11 +45,13 @@ Environment: Linux, Node.js 22.22, PostgreSQL 16 (local), moto 5 S3 emulator (lo
 |---|---|
 | `npm run lint` | pass |
 | `npm run typecheck` (backend + frontend) | pass |
-| Backend unit + integration + security | **156 passed** (10 files) |
-| Frontend | **22 passed** (2 files) |
-| Storage integration vs moto emulator | **8 passed**, 3 skipped (strict provider checks need a real bucket) |
+| Backend unit + integration + security | **198 passed** (12 files, incl. 42 storage-connector tests) |
+| Frontend | **25 passed** (3 files) |
+| Storage integration vs moto S3/STS emulator | **9 passed**, 3 skipped (strict provider checks need a real bucket); includes the cross-account role connector end to end (AssumeRole + External ID, session-token URLs, verification, upload, download) |
 | `npm run build` | pass (API compiled, SPA built) |
 | Browser smoke test vs local stack (API in development mode serving the built SPA, PostgreSQL, moto with CORS) | **13/13 steps passed**: Super Admin sign-in, create customer, create folder, single + 7 MiB multipart direct uploads verified by the server, disguised `.pdf` executable rejected, invite customer user, grant DOWNLOAD, set password via invitation and sign in on a mobile viewport, customer sees no management controls, pre-signed download with byte-for-byte comparison, admin page and upload API refused for the customer, download visible in audit log, no CSP/CORS console errors |
+| Connector browser test (`tests/e2e/connector-smoke.mjs`) vs a fresh `npm run setup:dev` environment | **4/4 steps passed**: create customer, configure IAM-role connector in the Storage tab, all ten verification checks pass, upload stored in and downloaded from the customer bucket |
+| Fresh-clone dev setup (`npm run setup:dev`, bootstrap, `npm run dev`) | verified; original browser smoke test 13/13 against the dev server |
 | Super Admin bootstrap CLI | verified: weak password rejected; first run creates the Super Admin; second run refused |
 | Production mode | verified: refuses `http://` base URL; issues `__Host-` `Secure; HttpOnly; SameSite=Strict` cookie and HSTS |
 
@@ -81,7 +83,10 @@ These could not be executed here because no Lightsail credentials or deployment 
    (including multipart, which needs the exposed `ETag`) succeed from the production origin.
 3. **Deployment smoke test:** run `tests/e2e/portal-smoke.mjs` against the staging deployment over HTTPS.
 4. **Email delivery:** verify invitation and reset emails through the production SMTP service.
-5. **Backup/restore rehearsal:** BACKUP_RECOVERY.md §3.1 on a staging copy.
+5. **Customer-owned storage in a real customer AWS account:** deploy `deploy/customer-storage-role.cfn.yaml`
+   in a test account, connect it with a real Tekpro STS identity, verify, and run `tests/e2e/connector-smoke.mjs`
+   (emulators do not enforce IAM policies, so prefix scoping is only proven against real AWS).
+6. **Backup/restore rehearsal:** BACKUP_RECOVERY.md §3.1 on a staging copy.
 
 ## 6. Load and capacity
 

@@ -68,6 +68,9 @@ the database on every request; sessions are revoked on role/status changes).
 | Audit tampering | No API to modify audit records; DB trigger rejects UPDATE/DELETE/TRUNCATE |
 | Race conditions | Upload completion claimed atomically; folder structure changes serialised per customer with a row lock; reset tokens claimed atomically; conditional updates for document state |
 | Orphaned objects | Upload expiry job, purge job and reconciliation |
+| Customer storage credentials (connectors) | Cross-account role with External ID (no stored secret, temporary credentials); access keys AES-256-GCM encrypted and bound to the connector id, never returned or logged; Super Admin only; permissions scoped to `customers/<id>/` |
+| SSRF via custom storage endpoints | `https://` public origins only; no credentials, localhost, private or link-local address literals; production refuses the insecure override |
+| Connector misuse / data placement | Each document records its storage; location changes refused while documents exist; uploads refused (no fallback) unless the connector is verified ACTIVE |
 | Default credentials | None. First Super Admin created by a one-time CLI that refuses to run if one exists |
 
 ## 4. Credential handling
@@ -111,3 +114,5 @@ IP addresses are kept for security monitoring; define a retention period in your
   against an S3 emulator in this repository; run `npm run storage:check` and the strict storage tests
   against the real bucket before go-live.
 - Password breach-list checks are not implemented; the policy enforces length and variety only.
+- Connector endpoints given as hostnames that resolve to private addresses are not detected (DNS-based SSRF); mitigated by Super-Admin-only configuration.
+- Customer-owned storage has been tested against an S3/STS emulator, not yet against a real customer AWS account.

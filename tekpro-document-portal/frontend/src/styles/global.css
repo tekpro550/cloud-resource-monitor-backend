@@ -1325,3 +1325,50 @@ pre {
 .confirm-message p {
   margin: 0 0 8px;
 }
+
+/* ----------------------------------------------------- Storage connector */
+.grid-2-tight {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+.copy-block {
+  margin-top: 14px;
+}
+.copy-block-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.checklist {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.checklist li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.check-ok > span:first-child {
+  color: var(--c-success);
+  font-weight: 800;
+}
+.check-fail > span:first-child {
+  color: var(--c-danger);
+  font-weight: 800;
+}
+.check-fail {
+  color: var(--c-danger);
+}
+.steps {
+  padding-left: 20px;
+  margin: 8px 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

@@ -132,6 +132,14 @@ multipart create/upload/complete, multipart abort, delete. If multipart fails, s
 `UPLOAD_MULTIPART_THRESHOLD_BYTES` ≥ `UPLOAD_MAX_FILE_SIZE_BYTES` and lower the maximum to 5 GiB
 (the single-PUT limit) — files are then uploaded with one pre-signed PUT.
 
+### Customer-owned storage (optional)
+
+To let customers keep documents in their own AWS account, create a Tekpro IAM user whose only
+permission is `sts:AssumeRole` (policy in [STORAGE_CONNECTORS.md](STORAGE_CONNECTORS.md#4-tekpro-side-configuration)),
+set `CONNECTOR_AWS_ACCESS_KEY_ID` / `CONNECTOR_AWS_SECRET_ACCESS_KEY`, and set `CONNECTOR_ENCRYPTION_KEY`
+(`openssl rand -base64 32`, back it up) if access-key connectors will be used. Customers deploy
+[`deploy/customer-storage-role.cfn.yaml`](../deploy/customer-storage-role.cfn.yaml) in their account.
+
 ## 9. Bucket privacy and access
 
 - No bucket policy or ACL should grant public read. The `storageCheck` "unsigned GET" test confirms it.

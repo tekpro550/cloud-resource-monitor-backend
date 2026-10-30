@@ -81,6 +81,8 @@ export function uploadsRoutes(s: Services): { customerScoped: Router; uploadScop
     const partCount = partSize ? Math.ceil(body.sizeBytes / partSize) : null;
     const expiresAt = new Date(Date.now() + s.config.upload.sessionTtlSeconds * 1000);
 
+    // The customer's own storage connector when configured (must be ACTIVE), else platform storage.
+    const target = await s.storageResolver.uploadTarget(customerId);
     const session = await s.prisma.$transaction(async (tx) => {
       await tx.document.create({
         data: {
@@ -95,6 +97,7 @@ export function uploadsRoutes(s: Services): { customerScoped: Router; uploadScop
           description: body.description,
           status: "PENDING_UPLOAD",
           uploadedByUserId: p.userId,
+          storageConnectorId: target.connectorId,
         },
       });
       const us = await tx.uploadSession.create({
@@ -117,7 +120,7 @@ export function uploadsRoutes(s: Services): { customerScoped: Router; uploadScop
           resourceType: "Document",
           resourceId: documentId,
           customerId,
-          metadata: { displayName, sizeBytes: body.sizeBytes, folderId: folder.id, mode: us.mode },
+          metadata: { displayName, sizeBytes: body.sizeBytes, folderId: folder.id, mode: us.mode, storage: target.connectorId ? "customer" : "platform" },
         },
         tx,
       );
@@ -126,7 +129,7 @@ export function uploadsRoutes(s: Services): { customerScoped: Router; uploadScop
 
     try {
       if (multipart) {
-        const storageUploadId = await s.storage.createMultipartUpload(objectKey, { contentType: mimeType });
+        const storageUploadId = await target.adapter.createMultipartUpload(objectKey, { contentType: mimeType });
         await s.prisma.uploadSession.update({ where: { id: session.id }, data: { storageUploadId } });
         res.status(201).json({
           data: {
@@ -139,7 +142,7 @@ export function uploadsRoutes(s: Services): { customerScoped: Router; uploadScop
           },
         });
       } else {
-        const put = await s.storage.presignPut(objectKey, {
+        const put = await target.adapter.presignPut(objectKey, {
           contentType: mimeType,
           contentLength: body.sizeBytes,
           expiresInSeconds: s.config.upload.urlTtlSeconds,
@@ -193,10 +196,11 @@ export function uploadsRoutes(s: Services): { customerScoped: Router; uploadScop
     if (session.expiresAt.getTime() <= Date.now()) throw new AppError(410, "UPLOAD_EXPIRED", "The upload session has expired");
     const invalid = partNumbers.filter((n) => n > (session.partCount ?? 0));
     if (invalid.length) throw badRequest("Part number out of range", { invalid });
+    const storage = await s.storageResolver.forDocument(session.document);
     const ttl = Math.min(s.config.upload.urlTtlSeconds, Math.floor((session.expiresAt.getTime() - Date.now()) / 1000));
     const urls = await Promise.all(
       [...new Set(partNumbers)].map(async (partNumber) => {
-        const r = await s.storage.presignUploadPart(session.document.objectKey, session.storageUploadId!, partNumber, Math.max(60, ttl));
+        const r = await storage.presignUploadPart(session.document.objectKey, session.storageUploadId!, partNumber, Math.max(60, ttl));
         return { partNumber, url: r.url, method: r.method, expiresAt: r.expiresAt };
       }),
     );
@@ -227,6 +231,7 @@ export function uploadsRoutes(s: Services): { customerScoped: Router; uploadScop
     session = { ...session, status: "COMPLETING" };
     const release = () => s.prisma.uploadSession.update({ where: { id: uploadId }, data: { status: "INITIATED" } });
     const key = session.document.objectKey;
+    const storage = await s.storageResolver.forDocument(session.document);
 
     try {
       if (session.mode === "MULTIPART") {
@@ -238,7 +243,7 @@ export function uploadsRoutes(s: Services): { customerScoped: Router; uploadScop
           throw badRequest(`All ${expected} parts must be listed exactly once to complete the upload`);
         }
         try {
-          await s.storage.completeMultipartUpload(key, session.storageUploadId!, parts);
+          await storage.completeMultipartUpload(key, session.storageUploadId!, parts);
         } catch (err) {
           // NOT_FOUND can mean an earlier attempt already completed it; verify below.
           if (!(err instanceof StorageError && err.kind === "NOT_FOUND")) {
@@ -251,7 +256,7 @@ export function uploadsRoutes(s: Services): { customerScoped: Router; uploadScop
         }
       }
 
-      const head = await s.storage.headObject(key);
+      const head = await storage.headObject(key);
       if (!head) {
         await release();
         throw new AppError(409, "UPLOAD_VERIFICATION_FAILED", "The uploaded file was not found in storage. Upload the file and try again.");
@@ -260,7 +265,7 @@ export function uploadsRoutes(s: Services): { customerScoped: Router; uploadScop
         await rejectUpload(s, req, session, `size mismatch: expected ${session.expectedSize}, stored ${head.sizeBytes}`);
         throw new AppError(422, "UPLOAD_VERIFICATION_FAILED", "The stored file size does not match the declared size. The upload was rejected.");
       }
-      const prefix = await s.storage.readObjectPrefix(key, SNIFF_BYTES);
+      const prefix = await storage.readObjectPrefix(key, SNIFF_BYTES);
       const check = await checkContent(prefix, session.document.extension, s.config.upload.allowedExtensions);
       if (!check.ok) {
         await rejectUpload(s, req, session, `content check failed: ${check.reason}`);
@@ -319,11 +324,12 @@ export function uploadsRoutes(s: Services): { customerScoped: Router; uploadScop
 }
 
 /** Removes any partial or rejected bytes for an upload session. */
-export async function cleanupStorage(s: Services, session: UploadSession, document: Pick<Document, "objectKey">): Promise<void> {
+export async function cleanupStorage(s: Services, session: UploadSession, document: Pick<Document, "objectKey" | "storageConnectorId">): Promise<void> {
+  const storage = await s.storageResolver.forDocument(document);
   if (session.mode === "MULTIPART" && session.storageUploadId) {
-    await s.storage.abortMultipartUpload(document.objectKey, session.storageUploadId);
+    await storage.abortMultipartUpload(document.objectKey, session.storageUploadId);
   }
-  await s.storage.deleteObject(document.objectKey);
+  await storage.deleteObject(document.objectKey);
 }
 
 async function markFailed(s: Services, req: Request | null, session: UploadSession, reason: string) {
@@ -345,7 +351,7 @@ async function markFailed(s: Services, req: Request | null, session: UploadSessi
 
 async function rejectUpload(s: Services, req: Request, session: UploadSession & { document: Document }, reason: string) {
   try {
-    await s.storage.deleteObject(session.document.objectKey);
+    await (await s.storageResolver.forDocument(session.document)).deleteObject(session.document.objectKey);
   } catch (err) {
     // The reconciliation job removes objects whose document is UPLOAD_FAILED.
     s.logger.warn({ err: (err as Error).message, documentId: session.documentId }, "Could not delete rejected upload object");

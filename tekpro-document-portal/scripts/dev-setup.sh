@@ -24,6 +24,7 @@ docker compose -f docker-compose.dev.yml up -d --wait
 if [ ! -f .env ]; then
   say "Creating .env for local development"
   SECRET=$(node -e 'console.log(require("crypto").randomBytes(48).toString("base64"))')
+  CONN_KEY=$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64"))')
   PG_PORT=${PORTAL_PG_PORT:-5432}
   S3_PORT=${PORTAL_S3_PORT:-5050}
   sed \
@@ -38,6 +39,12 @@ if [ ! -f .env ]; then
     -e "s|^STORAGE_FORCE_PATH_STYLE=.*|STORAGE_FORCE_PATH_STYLE=true|" \
     -e "s|^MAIL_DRIVER=.*|MAIL_DRIVER=console|" \
     -e "s|^ALLOW_ADMIN_RESET_LINKS=.*|ALLOW_ADMIN_RESET_LINKS=true|" \
+    -e "s|^# CONNECTOR_ENCRYPTION_KEY=.*|CONNECTOR_ENCRYPTION_KEY=${CONN_KEY}|" \
+    -e "s|^# CONNECTOR_AWS_ACCESS_KEY_ID=.*|CONNECTOR_AWS_ACCESS_KEY_ID=test|" \
+    -e "s|^# CONNECTOR_AWS_SECRET_ACCESS_KEY=.*|CONNECTOR_AWS_SECRET_ACCESS_KEY=test|" \
+    -e "s|^# CONNECTOR_STS_REGION=.*|CONNECTOR_STS_REGION=us-east-1|" \
+    -e "s|^# CONNECTOR_STS_ENDPOINT=.*|CONNECTOR_STS_ENDPOINT=http://localhost:${S3_PORT}|" \
+    -e "s|^# CONNECTOR_ALLOW_INSECURE_ENDPOINTS=.*|CONNECTOR_ALLOW_INSECURE_ENDPOINTS=true|" \
     .env.example > .env
 else
   say ".env already exists - leaving it unchanged"
@@ -47,7 +54,7 @@ say "Installing dependencies"
 npm ci
 npm run prisma:generate -w backend
 
-say "Creating the storage bucket"
+say "Creating the storage buckets"
 node --env-file=.env scripts/dev-create-bucket.mjs
 
 say "Applying database migrations"

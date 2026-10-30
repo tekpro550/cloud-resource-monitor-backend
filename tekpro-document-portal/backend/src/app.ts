@@ -16,6 +16,7 @@ import { foldersRoutes } from "./modules/folders/folders.routes.js";
 import { healthRoutes } from "./modules/health/health.routes.js";
 import { settingsRoutes } from "./modules/settings/settings.routes.js";
 import { statsRoutes } from "./modules/stats/stats.routes.js";
+import { storageConnectorRoutes } from "./modules/storageConnectors/storageConnectors.routes.js";
 import { uploadsRoutes } from "./modules/uploads/uploads.routes.js";
 import { usersRoutes } from "./modules/users/users.routes.js";
 import { createServices, type Services } from "./services.js";
@@ -54,6 +55,17 @@ export function createApp(ctx: AppContext): { app: Express; services: Services }
   );
 
   const storageOrigin = storageBrowserOrigin(s.config);
+  // Pages (not API responses) need the origins of customer buckets in connect-src
+  // so browsers may upload to them; only connectors actually configured are added.
+  app.use(async (req, res, next) => {
+    if (req.path.startsWith("/api/")) return next();
+    try {
+      res.locals.connectorOrigins = (await s.storageResolver.connectorOrigins()).join(" ");
+    } catch (err) {
+      req.log?.warn({ err }, "Could not load storage connector origins for CSP");
+    }
+    next();
+  });
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -64,7 +76,11 @@ export function createApp(ctx: AppContext): { app: Express; services: Services }
           "style-src": ["'self'"],
           "img-src": ["'self'", "data:"],
           "font-src": ["'self'"],
-          "connect-src": ["'self'", ...(storageOrigin ? [storageOrigin] : [])],
+          "connect-src": [
+            "'self'",
+            ...(storageOrigin ? [storageOrigin] : []),
+            (_req, res) => ((res as express.Response).locals.connectorOrigins as string | undefined) || "'self'",
+          ],
           "frame-ancestors": ["'none'"],
           "form-action": ["'self'"],
           "object-src": ["'none'"],
@@ -119,6 +135,9 @@ export function createApp(ctx: AppContext): { app: Express; services: Services }
   v1.use("/customers/:customerId/folders", folders.customerScoped);
   v1.use("/customers/:customerId/documents", documents.customerScoped);
   v1.use("/customers/:customerId/uploads", uploads.customerScoped);
+  const connectors = storageConnectorRoutes(s);
+  v1.use("/customers/:customerId/storage-connector", connectors.customerScoped);
+  v1.use("/storage-connectors", connectors.global);
   v1.use("/customers", customersRoutes(s));
   v1.use("/users", usersRoutes(s));
   v1.use("/folders", folders.folderScoped);

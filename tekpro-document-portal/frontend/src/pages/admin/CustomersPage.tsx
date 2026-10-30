@@ -8,6 +8,7 @@ import { customersApi, usersApi } from "../../services/endpoints";
 import type { Customer } from "../../types/api";
 import { formatBytes, formatDate, formatDateTime, ROLE_LABELS } from "../../utils/format";
 import { capabilities } from "../../utils/permissions";
+import { CustomerStorage } from "./CustomerStorage";
 import { UserFormDialog } from "./UsersPage";
 
 export function CustomersPage() {
@@ -152,7 +153,7 @@ function CustomerFormDialog({ customer, onClose, onSaved }: { customer?: Custome
   );
 }
 
-type Tab = "overview" | "staff" | "users";
+type Tab = "overview" | "staff" | "users" | "storage";
 
 export function CustomerDetailPage() {
   const { customerId } = useParams();
@@ -196,6 +197,7 @@ export function CustomerDetailPage() {
           { id: "overview", label: "Overview" },
           { id: "staff", label: "Tekpro staff" },
           { id: "users", label: "Customer users" },
+          { id: "storage", label: "Storage" },
         ]}
         value={tab}
         onChange={setTab}
@@ -203,6 +205,7 @@ export function CustomerDetailPage() {
       {tab === "overview" && <CustomerOverview id={id} />}
       {tab === "staff" && <CustomerStaff id={id} />}
       {tab === "users" && <CustomerUsers customer={c} />}
+      {tab === "storage" && <CustomerStorage customerId={id} />}
       {editing && <CustomerFormDialog customer={c} onClose={() => setEditing(false)} onSaved={(u) => (customer.setData(u), setEditing(false))} />}
       {toggling && (
         <ConfirmDialog

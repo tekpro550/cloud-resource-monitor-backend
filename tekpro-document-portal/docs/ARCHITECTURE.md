@@ -162,6 +162,24 @@ Lightsail buckets are S3 buckets served from the regional endpoint and accessed 
 per-bucket access key. Feature support must be confirmed for the actual bucket with
 `npm run storage:check` (see DEPLOYMENT.md).
 
+## 8a. Customer-owned storage (connectors)
+
+`StorageResolver` (`storage/resolver.ts`) decides which bucket each operation uses:
+
+- **New uploads:** the customer's `StorageConnector` if one exists (must be `ACTIVE`, otherwise 409 —
+  no fallback), else platform storage. The document stores `storageConnectorId` (composite FK to the
+  connector of the same customer).
+- **Everything else** (part URLs, completion, downloads, restore, purge, expiry cleanup) uses the
+  storage recorded on the document.
+- Connector adapters are cached per connector version. Role connectors obtain temporary credentials via
+  STS `AssumeRole` + External ID; the reported expiry is moved 25 minutes earlier so pre-signed URLs never
+  outlive their credentials. Access-key connectors decrypt the AES-256-GCM secret.
+- Customer credentials are scoped to `customers/<customerId>/`, so connectivity checks use a prefix
+  listing instead of HeadBucket.
+- The page CSP `connect-src` is computed per request from configured connectors (cached 60 s).
+
+Details and setup: [STORAGE_CONNECTORS.md](STORAGE_CONNECTORS.md).
+
 ## 9. Background jobs
 
 `npm run jobs -- maintenance` (or `JOBS_ENABLED=true`) runs upload expiry, purge and pruning under a

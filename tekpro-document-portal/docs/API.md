@@ -120,6 +120,23 @@ Never returned to any client: `objectKey`, storage upload ids, password hashes.
 Only the user who initiated an upload (or a Super Admin) can continue, complete or abort it, and only
 while they still have access to the customer.
 
+## Storage connectors (customer-owned storage)
+
+See [STORAGE_CONNECTORS.md](STORAGE_CONNECTORS.md).
+
+| Method | Path | Who | Notes |
+|---|---|---|---|
+| GET | `/customers/:customerId/storage-connector` | SA; TU (assigned, summary only) | `{mode: "PLATFORM"\|"CUSTOMER", connector, portalPrincipalArn?, setup?: {trustPolicy, permissionsPolicy, corsConfiguration}}`. Never includes secrets |
+| PUT | `/customers/:customerId/storage-connector` | SA | `{provider: "AWS_S3"\|"LIGHTSAIL"\|"S3_COMPATIBLE", bucket, region, endpoint? (S3_COMPATIBLE only, public https), forcePathStyle?, authType: "ASSUME_ROLE"\|"ACCESS_KEY", roleArn?, accessKeyId?, secretAccessKey?}`. Lightsail requires ACCESS_KEY. Omitted key id/secret keep the stored ones. Location fields cannot change while documents are stored (409). Always resets status to `PENDING_VERIFICATION` |
+| POST | `/customers/:customerId/storage-connector/verify` | SA | Live checks; `{result: {ok, checkedAt, checks:[{id,label,ok,detail?}]}, connector}`; status becomes `ACTIVE` or `FAILED` (stays `DISABLED` if disabled) |
+| POST | `/customers/:customerId/storage-connector/disable` | SA | Stops new uploads |
+| POST | `/customers/:customerId/storage-connector/enable` | SA | Back to `PENDING_VERIFICATION` |
+| DELETE | `/customers/:customerId/storage-connector` | SA | 409 while documents reference it |
+| GET | `/storage-connectors/portal-identity` | SA | `{principalArn}` – Tekpro principal for trust policies (503 if not configured) |
+
+While a customer has a connector that is not `ACTIVE`, `POST /customers/:id/uploads/initiate` returns
+409 `INVALID_STATE` (no fallback to platform storage).
+
 ## Audit
 
 `GET /audit-logs?customerId&actorUserId&action(prefix)&outcome&from&to&page&pageSize`
@@ -137,7 +154,8 @@ Action names: `auth.login.succeeded|failed`, `auth.logout`, `auth.password_reset
 `folder.created|renamed|moved|visibility_changed|deleted`, `permission.changed|removed`,
 `document.upload.initiated|completed|failed|aborted|expired`, `document.download.link_issued`,
 `document.renamed|moved|updated|deleted|restored|purged|purge_failed|object_missing`,
-`storage.orphan_removed`, `security.access_denied`, `settings.changed`.
+`storage.orphan_removed`, `storage.misplaced_object`, `security.access_denied`, `settings.changed`,
+`storage_connector.created|updated|verified|verification_failed|disabled|enabled|deleted`.
 
 ## Settings and statistics (Super Admin)
 

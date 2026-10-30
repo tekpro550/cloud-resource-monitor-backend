@@ -35,11 +35,17 @@ interface StoredObject {
  * simulate "browser" uploads against the issued pre-signed requests.
  */
 export class MemoryStorageAdapter implements StorageAdapter {
-  readonly name = "memory";
+  readonly name: string;
   readonly objects = new Map<string, StoredObject>();
   private readonly multipart = new Map<string, { key: string; contentType: string; parts: Map<number, StoredObject> }>();
   private readonly failures = new Map<Operation, StorageError>();
   readonly issuedUrls: string[] = [];
+  /** Simulated bucket CORS: origin allowed for browser requests, and whether ETag is exposed. */
+  cors: { allowOrigin: string | null; exposeEtag: boolean } = { allowOrigin: "*", exposeEtag: true };
+
+  constructor(readonly host = "memory-storage.invalid") {
+    this.name = host === "memory-storage.invalid" ? "memory" : `memory:${host}`;
+  }
 
   failNext(op: Operation, kind: StorageError["kind"] = "UNAVAILABLE"): void {
     this.failures.set(op, new StorageError(kind, `Simulated ${kind} during ${op}`, kind === "UNAVAILABLE"));
@@ -80,7 +86,7 @@ export class MemoryStorageAdapter implements StorageAdapter {
   }
 
   private presigned(method: "PUT" | "GET", key: string, ttl: number, extra: string, headers: Record<string, string> = {}): PresignedRequest {
-    const url = `https://memory-storage.invalid/${encodeURI(key)}?X-Amz-Expires=${ttl}&X-Amz-Signature=${randomUUID()}${extra}`;
+    const url = `https://${this.host}/${encodeURI(key)}?X-Amz-Expires=${ttl}&X-Amz-Signature=${randomUUID()}${extra}`;
     this.issuedUrls.push(url);
     return { url, method, headers, expiresAt: new Date(Date.now() + ttl * 1000) };
   }

@@ -64,6 +64,24 @@ enum UploadSessionStatus {
   FAILED
 }
 
+enum StorageProvider {
+  AWS_S3
+  LIGHTSAIL
+  S3_COMPATIBLE
+}
+
+enum StorageAuthType {
+  ASSUME_ROLE
+  ACCESS_KEY
+}
+
+enum StorageConnectorStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  FAILED
+  DISABLED
+}
+
 enum AuditOutcome {
   SUCCESS
   FAILURE
@@ -76,32 +94,32 @@ enum PasswordTokenPurpose {
 }
 
 model User {
-  id                  String     @id @default(uuid()) @db.Uuid
-  email               String     @unique
-  passwordHash        String?
-  fullName            String
-  role                Role
-  status              UserStatus @default(ACTIVE)
-  customerId          String?    @db.Uuid
-  failedLoginCount    Int        @default(0)
-  lockedUntil         DateTime?
-  passwordChangedAt   DateTime?
-  createdAt           DateTime   @default(now())
-  updatedAt           DateTime   @updatedAt
-  lastLoginAt         DateTime?
+  id                String     @id @default(uuid()) @db.Uuid
+  email             String     @unique
+  passwordHash      String?
+  fullName          String
+  role              Role
+  status            UserStatus @default(ACTIVE)
+  customerId        String?    @db.Uuid
+  failedLoginCount  Int        @default(0)
+  lockedUntil       DateTime?
+  passwordChangedAt DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  lastLoginAt       DateTime?
 
-  customer            Customer?  @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: Restrict)
 
-  sessions            Session[]
-  passwordTokens      PasswordToken[]
-  assignments         TekproUserCustomerAssignment[] @relation("AssignmentUser")
-  assignmentsGranted  TekproUserCustomerAssignment[] @relation("AssignmentGrantor")
-  folderPermissions   CustomerUserFolderPermission[] @relation("PermissionUser")
-  permissionsGranted  CustomerUserFolderPermission[] @relation("PermissionGrantor")
-  foldersCreated      Folder[]
-  documentsUploaded   Document[]
-  uploadSessions      UploadSession[]
-  auditEvents         AuditLog[]
+  sessions           Session[]
+  passwordTokens     PasswordToken[]
+  assignments        TekproUserCustomerAssignment[] @relation("AssignmentUser")
+  assignmentsGranted TekproUserCustomerAssignment[] @relation("AssignmentGrantor")
+  folderPermissions  CustomerUserFolderPermission[] @relation("PermissionUser")
+  permissionsGranted CustomerUserFolderPermission[] @relation("PermissionGrantor")
+  foldersCreated     Folder[]
+  documentsUploaded  Document[]
+  uploadSessions     UploadSession[]
+  auditEvents        AuditLog[]
 
   @@unique([id, customerId])
   @@index([customerId, role])
@@ -116,14 +134,46 @@ model Customer {
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
-  users        User[]
-  assignments  TekproUserCustomerAssignment[]
-  folders      Folder[]
-  documents    Document[]
-  uploads      UploadSession[]
-  auditEvents  AuditLog[]
+  users            User[]
+  assignments      TekproUserCustomerAssignment[]
+  folders          Folder[]
+  documents        Document[]
+  uploads          UploadSession[]
+  auditEvents      AuditLog[]
+  storageConnector StorageConnector?
 
   @@index([status])
+}
+
+/// A customer's own bucket (e.g. in the customer's AWS account). When a customer
+/// has a connector, new uploads for that customer are stored there instead of
+/// the platform bucket. Each document records the connector it was stored with.
+model StorageConnector {
+  id               String                 @id @default(uuid()) @db.Uuid
+  customerId       String                 @unique @db.Uuid
+  provider         StorageProvider
+  bucket           String
+  region           String
+  endpoint         String?
+  forcePathStyle   Boolean                @default(false)
+  authType         StorageAuthType
+  roleArn          String?
+  /// Random value the customer must require in the role trust policy (confused-deputy protection).
+  externalId       String
+  accessKeyId      String?
+  /// AES-256-GCM ciphertext of the secret access key (ACCESS_KEY mode only).
+  secretCiphertext String?
+  status           StorageConnectorStatus @default(PENDING_VERIFICATION)
+  lastVerifiedAt   DateTime?
+  lastCheck        Json?
+  createdByUserId  String?                @db.Uuid
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  customer  Customer   @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  documents Document[]
+
+  @@unique([id, customerId])
 }
 
 model TekproUserCustomerAssignment {
@@ -152,10 +202,10 @@ model Folder {
   updatedAt          DateTime  @updatedAt
   deletedAt          DateTime?
 
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  parent      Folder?  @relation("FolderTree", fields: [parentFolderId, customerId], references: [id, customerId], onDelete: Restrict, onUpdate: Restrict)
-  children    Folder[] @relation("FolderTree")
-  createdBy   User?    @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  customer    Customer                       @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  parent      Folder?                        @relation("FolderTree", fields: [parentFolderId, customerId], references: [id, customerId], onDelete: Restrict, onUpdate: Restrict)
+  children    Folder[]                       @relation("FolderTree")
+  createdBy   User?                          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
   documents   Document[]
   permissions CustomerUserFolderPermission[]
   uploads     UploadSession[]
@@ -166,32 +216,35 @@ model Folder {
 }
 
 model Document {
-  id               String         @id @default(uuid()) @db.Uuid
-  customerId       String         @db.Uuid
-  folderId         String         @db.Uuid
-  displayName      String
-  extension        String         @default("")
-  objectKey        String         @unique
-  mimeType         String
-  sizeBytes        BigInt
-  checksum         String?
-  storageEtag      String?
-  description      String?
-  status           DocumentStatus @default(PENDING_UPLOAD)
-  uploadedByUserId String?        @db.Uuid
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  availableAt      DateTime?
-  deletedAt        DateTime?
-  deletedByUserId  String?        @db.Uuid
-  purgeAfter       DateTime?
-  purgeAttempts    Int            @default(0)
-  purgedAt         DateTime?
+  id                 String         @id @default(uuid()) @db.Uuid
+  customerId         String         @db.Uuid
+  folderId           String         @db.Uuid
+  displayName        String
+  extension          String         @default("")
+  objectKey          String         @unique
+  mimeType           String
+  sizeBytes          BigInt
+  checksum           String?
+  storageEtag        String?
+  description        String?
+  status             DocumentStatus @default(PENDING_UPLOAD)
+  uploadedByUserId   String?        @db.Uuid
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  availableAt        DateTime?
+  deletedAt          DateTime?
+  deletedByUserId    String?        @db.Uuid
+  purgeAfter         DateTime?
+  purgeAttempts      Int            @default(0)
+  purgedAt           DateTime?
+  /// Null = platform storage; otherwise the customer's own storage connector.
+  storageConnectorId String?        @db.Uuid
 
-  customer   Customer       @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  folder     Folder         @relation(fields: [folderId, customerId], references: [id, customerId], onDelete: Restrict, onUpdate: Restrict)
-  uploadedBy User?          @relation(fields: [uploadedByUserId], references: [id], onDelete: SetNull)
-  upload     UploadSession?
+  customer         Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  storageConnector StorageConnector? @relation(fields: [storageConnectorId, customerId], references: [id, customerId], onDelete: Restrict, onUpdate: Restrict)
+  folder           Folder            @relation(fields: [folderId, customerId], references: [id, customerId], onDelete: Restrict, onUpdate: Restrict)
+  uploadedBy       User?             @relation(fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  upload           UploadSession?
 
   @@index([customerId, folderId, status])
   @@index([customerId, status, createdAt])
@@ -218,22 +271,22 @@ model CustomerUserFolderPermission {
 }
 
 model UploadSession {
-  id               String              @id @default(uuid()) @db.Uuid
-  documentId       String              @unique @db.Uuid
-  customerId       String              @db.Uuid
-  folderId         String              @db.Uuid
-  createdByUserId  String?             @db.Uuid
-  mode             UploadMode
-  storageUploadId  String?
-  expectedSize     BigInt
-  partSize         BigInt?
-  partCount        Int?
-  status           UploadSessionStatus @default(INITIATED)
-  failureReason    String?
-  expiresAt        DateTime
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-  completedAt      DateTime?
+  id              String              @id @default(uuid()) @db.Uuid
+  documentId      String              @unique @db.Uuid
+  customerId      String              @db.Uuid
+  folderId        String              @db.Uuid
+  createdByUserId String?             @db.Uuid
+  mode            UploadMode
+  storageUploadId String?
+  expectedSize    BigInt
+  partSize        BigInt?
+  partCount       Int?
+  status          UploadSessionStatus @default(INITIATED)
+  failureReason   String?
+  expiresAt       DateTime
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  completedAt     DateTime?
 
   document  Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
   customer  Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
@@ -284,17 +337,17 @@ model SystemSetting {
 }
 
 model AuditLog {
-  id          String       @id @default(uuid()) @db.Uuid
-  actorUserId String?      @db.Uuid
-  customerId  String?      @db.Uuid
-  action      String
+  id           String       @id @default(uuid()) @db.Uuid
+  actorUserId  String?      @db.Uuid
+  customerId   String?      @db.Uuid
+  action       String
   resourceType String
-  resourceId  String?
-  outcome     AuditOutcome
-  requestId   String?
-  ipAddress   String?
-  metadata    Json?
-  createdAt   DateTime     @default(now())
+  resourceId   String?
+  outcome      AuditOutcome
+  requestId    String?
+  ipAddress    String?
+  metadata     Json?
+  createdAt    DateTime     @default(now())
 
   actor    User?     @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
   customer Customer? @relation(fields: [customerId], references: [id], onDelete: Restrict)

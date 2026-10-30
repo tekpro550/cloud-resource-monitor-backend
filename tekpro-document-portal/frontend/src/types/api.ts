@@ -111,3 +111,53 @@ export interface UploadInitiation {
   partCount?: number;
   upload?: { url: string; method: "PUT"; headers: Record<string, string>; expiresAt: string };
 }
+
+export type StorageProvider = "AWS_S3" | "LIGHTSAIL" | "S3_COMPATIBLE";
+export type StorageAuthType = "ASSUME_ROLE" | "ACCESS_KEY";
+export type ConnectorStatus = "PENDING_VERIFICATION" | "ACTIVE" | "FAILED" | "DISABLED";
+
+export interface VerificationResult {
+  ok: boolean;
+  checkedAt: string;
+  checks: { id: string; label: string; ok: boolean; detail?: string }[];
+}
+
+export interface StorageConnector {
+  id: string;
+  customerId: string;
+  provider: StorageProvider;
+  bucket: string;
+  region: string;
+  endpoint: string | null;
+  forcePathStyle: boolean;
+  authType: StorageAuthType;
+  roleArn: string | null;
+  externalId: string;
+  accessKeyIdMasked: string | null;
+  secretStored: boolean;
+  status: ConnectorStatus;
+  lastVerifiedAt: string | null;
+  lastCheck: VerificationResult | null;
+  documentCount: number;
+  prefix: string;
+}
+
+export interface StorageConnectorView {
+  mode: "PLATFORM" | "CUSTOMER";
+  connector: StorageConnector | null;
+  portalPrincipalArn?: string | null;
+  portalIdentityError?: string | null;
+  setup?: { trustPolicy: object | null; permissionsPolicy: object; corsConfiguration: object };
+}
+
+export interface ConnectorInput {
+  provider: StorageProvider;
+  bucket: string;
+  region: string;
+  endpoint?: string | null;
+  forcePathStyle?: boolean;
+  authType: StorageAuthType;
+  roleArn?: string | null;
+  accessKeyId?: string | null;
+  secretAccessKey?: string | null;
+}

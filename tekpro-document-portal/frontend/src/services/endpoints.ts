@@ -9,6 +9,10 @@ import type {
   Paged,
   PortalSettings,
   Role,
+  StorageConnector,
+  StorageConnectorView,
+  ConnectorInput,
+  VerificationResult,
   UploadInitiation,
   User,
 } from "../types/api";
@@ -126,4 +130,14 @@ export const statsApi = {
       customers: { id: string; name: string; customerCode: string; status: string; byStatus: Record<string, { count: number; bytes: number }> }[];
       dailyUploads: { day: string; uploads: number; bytes: number }[];
     }>("/stats/storage"),
+};
+
+export const storageConnectorApi = {
+  get: (customerId: string) => http.get<StorageConnectorView>(`/customers/${customerId}/storage-connector`),
+  save: (customerId: string, body: ConnectorInput) => http.put<StorageConnector>(`/customers/${customerId}/storage-connector`, body),
+  verify: (customerId: string) =>
+    http.post<{ result: VerificationResult; connector: StorageConnector }>(`/customers/${customerId}/storage-connector/verify`),
+  disable: (customerId: string) => http.post<StorageConnector>(`/customers/${customerId}/storage-connector/disable`),
+  enable: (customerId: string) => http.post<StorageConnector>(`/customers/${customerId}/storage-connector/enable`),
+  remove: (customerId: string) => http.delete<void>(`/customers/${customerId}/storage-connector`),
 };

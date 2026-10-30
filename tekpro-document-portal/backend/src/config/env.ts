@@ -54,6 +54,14 @@ const envSchema = z.object({
   UPLOAD_SESSION_TTL_SECONDS: int(24 * 3600, 300),
   DOWNLOAD_URL_TTL_SECONDS: int(300, 30),
 
+  CONNECTOR_ENCRYPTION_KEY: z.string().optional(),
+  CONNECTOR_AWS_ACCESS_KEY_ID: z.string().optional(),
+  CONNECTOR_AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  CONNECTOR_STS_REGION: z.string().default("us-east-1"),
+  CONNECTOR_STS_ENDPOINT: z.string().url().optional(),
+  CONNECTOR_ROLE_SESSION_SECONDS: int(3600, 3600),
+  CONNECTOR_ALLOW_INSECURE_ENDPOINTS: bool(false),
+
   DELETED_DOCUMENT_RETENTION_DAYS: int(30, 0),
   JOBS_ENABLED: bool(false),
   JOBS_INTERVAL_SECONDS: int(15 * 60, 60),
@@ -108,6 +116,17 @@ export interface AppConfig {
     sessionTtlSeconds: number;
   };
   downloadUrlTtlSeconds: number;
+  connectors: {
+    /** 32-byte key for encrypting customer access keys; ACCESS_KEY connectors are refused without it. */
+    encryptionKey?: Buffer;
+    /** Tekpro credentials used only to call sts:AssumeRole; the SDK default chain is used when unset. */
+    assumeRoleCredentials?: { accessKeyId: string; secretAccessKey: string };
+    stsRegion: string;
+    stsEndpoint?: string;
+    roleSessionSeconds: number;
+    /** Permit http:// or private-network endpoints for S3-compatible connectors (never in production). */
+    allowInsecureEndpoints: boolean;
+  };
   deletedDocumentRetentionDays: number;
   jobs: { enabled: boolean; intervalSeconds: number };
   mail: {
@@ -145,6 +164,15 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
       problems.push("SESSION_SECRET looks like a placeholder; generate a random value");
     }
   }
+  let encryptionKey: Buffer | undefined;
+  if (e.CONNECTOR_ENCRYPTION_KEY) {
+    encryptionKey = Buffer.from(e.CONNECTOR_ENCRYPTION_KEY, "base64");
+    if (encryptionKey.length !== 32) problems.push("CONNECTOR_ENCRYPTION_KEY must be 32 bytes, base64-encoded (openssl rand -base64 32)");
+  }
+  if (!!e.CONNECTOR_AWS_ACCESS_KEY_ID !== !!e.CONNECTOR_AWS_SECRET_ACCESS_KEY) {
+    problems.push("Set both CONNECTOR_AWS_ACCESS_KEY_ID and CONNECTOR_AWS_SECRET_ACCESS_KEY, or neither");
+  }
+  if (isProduction && e.CONNECTOR_ALLOW_INSECURE_ENDPOINTS) problems.push("CONNECTOR_ALLOW_INSECURE_ENDPOINTS cannot be enabled in production");
   if (e.MAIL_DRIVER === "smtp" && !e.SMTP_HOST) problems.push("SMTP_HOST is required when MAIL_DRIVER=smtp");
   if (e.UPLOAD_PART_SIZE_BYTES > 5 * 1024 ** 3) problems.push("UPLOAD_PART_SIZE_BYTES cannot exceed 5 GiB (S3 limit)");
   if (problems.length) {
@@ -206,6 +234,17 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
       sessionTtlSeconds: e.UPLOAD_SESSION_TTL_SECONDS,
     },
     downloadUrlTtlSeconds: e.DOWNLOAD_URL_TTL_SECONDS,
+    connectors: {
+      encryptionKey,
+      assumeRoleCredentials:
+        e.CONNECTOR_AWS_ACCESS_KEY_ID && e.CONNECTOR_AWS_SECRET_ACCESS_KEY
+          ? { accessKeyId: e.CONNECTOR_AWS_ACCESS_KEY_ID, secretAccessKey: e.CONNECTOR_AWS_SECRET_ACCESS_KEY }
+          : undefined,
+      stsRegion: e.CONNECTOR_STS_REGION,
+      stsEndpoint: e.CONNECTOR_STS_ENDPOINT,
+      roleSessionSeconds: e.CONNECTOR_ROLE_SESSION_SECONDS,
+      allowInsecureEndpoints: e.CONNECTOR_ALLOW_INSECURE_ENDPOINTS,
+    },
     deletedDocumentRetentionDays: e.DELETED_DOCUMENT_RETENTION_DAYS,
     jobs: { enabled: e.JOBS_ENABLED, intervalSeconds: e.JOBS_INTERVAL_SECONDS },
     mail: {

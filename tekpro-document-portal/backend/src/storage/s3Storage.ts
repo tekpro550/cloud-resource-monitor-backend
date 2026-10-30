@@ -13,7 +13,7 @@ import {
   UploadPartCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import type { AppConfig } from "../config/env.js";
+import type { AwsCredentialIdentity, AwsCredentialIdentityProvider } from "@aws-sdk/types";
 import {
   StorageError,
   type CompletedPart,
@@ -36,18 +36,39 @@ import {
  * otherwise add x-amz-checksum-* parameters to pre-signed PUT URLs, which a
  * browser cannot satisfy and which some S3-compatible services reject.
  */
+export interface S3AdapterOptions {
+  bucket: string;
+  region?: string;
+  endpoint?: string;
+  forcePathStyle: boolean;
+  requestTimeoutMs: number;
+  /** Static keys, or a provider returning temporary credentials (e.g. from STS AssumeRole). */
+  credentials?: AwsCredentialIdentity | AwsCredentialIdentityProvider;
+  accessKeyId?: string;
+  secretAccessKey?: string;
+  /**
+   * When set, connectivity is checked with a prefix-scoped ListObjectsV2 instead of
+   * HeadBucket, so credentials limited to one customer prefix can pass the check.
+   */
+  connectivityPrefix?: string;
+  name?: string;
+}
+
 export class S3StorageAdapter implements StorageAdapter {
-  readonly name = "s3";
+  readonly name: string;
   private readonly client: S3Client;
   private readonly bucket: string;
+  private readonly connectivityPrefix?: string;
 
-  constructor(cfg: AppConfig["storage"]) {
+  constructor(cfg: S3AdapterOptions) {
+    this.name = cfg.name ?? "s3";
     this.bucket = cfg.bucket;
+    this.connectivityPrefix = cfg.connectivityPrefix;
     this.client = new S3Client({
       region: cfg.region,
       endpoint: cfg.endpoint,
       forcePathStyle: cfg.forcePathStyle,
-      credentials: { accessKeyId: cfg.accessKeyId!, secretAccessKey: cfg.secretAccessKey! },
+      credentials: cfg.credentials ?? { accessKeyId: cfg.accessKeyId!, secretAccessKey: cfg.secretAccessKey! },
       requestChecksumCalculation: "WHEN_REQUIRED",
       responseChecksumValidation: "WHEN_REQUIRED",
       maxAttempts: 3,
@@ -56,6 +77,12 @@ export class S3StorageAdapter implements StorageAdapter {
   }
 
   async checkConnectivity(): Promise<void> {
+    if (this.connectivityPrefix) {
+      await this.run("ListObjectsV2", () =>
+        this.client.send(new ListObjectsV2Command({ Bucket: this.bucket, Prefix: this.connectivityPrefix, MaxKeys: 1 })),
+      );
+      return;
+    }
     await this.run("HeadBucket", () => this.client.send(new HeadBucketCommand({ Bucket: this.bucket })));
   }
 
