@@ -24,7 +24,9 @@
     "storage:check": "npm run storage:check -w backend --",
     "jobs": "npm run jobs -w backend --",
     "start": "npm run start -w backend",
-    "test:storage-integration": "npm run test:storage-integration -w backend"
+    "test:storage-integration": "npm run test:storage-integration -w backend",
+    "setup:dev": "bash scripts/dev-setup.sh",
+    "dev": "bash scripts/dev.sh"
   },
   "overrides": {
     "deepmerge-ts": "^8.0.2"
@@ -37,5 +39,13 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.72.1"
   },
-  "type": "module"
+  "type": "module",
+  "allowScripts": {
+    "@prisma/client": true,
+    "@prisma/engines": true,
+    "prisma": true,
+    "argon2": true,
+    "esbuild": true,
+    "fsevents": true
+  }
 }

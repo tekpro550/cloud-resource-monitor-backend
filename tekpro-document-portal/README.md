@@ -67,24 +67,33 @@ Vitest · Supertest · React Testing Library · Playwright (e2e smoke). Exact ve
 
 ## Local development
 
+Requirements: Node.js **22.12+** and **Docker Desktop** (running). The setup script starts PostgreSQL and
+a local S3-compatible server ([moto](https://github.com/getmoto/moto), standing in for the Lightsail
+bucket) with `docker-compose.dev.yml`, writes `.env` (only if it does not exist), installs dependencies,
+creates the bucket and applies the migrations.
+
 ```bash
-npm ci                                  # installs backend + frontend (npm workspaces)
-cp .env.example .env                    # then edit values (see below)
-npm run db:migrate                      # applies prisma/migrations to DATABASE_URL
+git clone -b claude/wizardly-hopper-1j4uwh https://github.com/tekpro550/cloud-resource-monitor-backend.git
+cd cloud-resource-monitor-backend/tekpro-document-portal
+npm run setup:dev
 npm run bootstrap:superadmin -- --email you@tekpro.example --name "Your Name"
-npm run dev:backend                     # API on http://localhost:3000
-npm run dev:frontend                    # SPA on http://localhost:5173 (proxies /api to :3000)
+npm run dev            # API on :3000 and web app on http://localhost:5173 (Ctrl+C stops both)
 ```
 
-Minimum `.env` changes for development:
+Notes:
 
-- `DATABASE_URL` – your local PostgreSQL database
-- `SESSION_SECRET` – `openssl rand -base64 48`
-- `APP_BASE_URL=http://localhost:5173`
-- `STORAGE_*` – a **non-production** bucket (or any S3-compatible endpoint, e.g. MinIO with
-  `STORAGE_ENDPOINT=http://localhost:9000` and `STORAGE_FORCE_PATH_STYLE=true`), with browser CORS
-  allowing `http://localhost:5173`
-- `MAIL_DRIVER=console` to print invitation/reset links in the API console (development only)
+- The bootstrap command prompts for a password (input hidden): at least 12 characters, three of
+  lower-case / upper-case / digits / symbols, and not containing the part of your email before the @.
+- In development `MAIL_DRIVER=console` prints invitation and reset emails in the terminal, and
+  `ALLOW_ADMIN_RESET_LINKS=true` also shows invitation links on screen.
+- npm 11.6+/12 only runs dependency install scripts listed in `allowScripts` (`package.json`); the
+  required ones (Prisma, argon2, esbuild, fsevents) are pre-approved, so no manual approval is needed.
+- If port 5432 or 5050 is already in use, run `PORTAL_PG_PORT=5433 PORTAL_S3_PORT=5051 npm run setup:dev`
+  (with no `.env` present yet, so it is generated with those ports).
+- moto keeps files in memory: after restarting it, previously uploaded files are gone (their records stay).
+- Stop the services with `docker compose -f docker-compose.dev.yml down` (add `-v` to also delete the database).
+- To use a real (non-production) Lightsail bucket instead, set the `STORAGE_*` values in `.env` and add a
+  bucket CORS rule allowing `http://localhost:5173` (see docs/DEPLOYMENT.md §10).
 
 `STORAGE_DRIVER=memory` exists only for automated tests and is rejected in production.
 
@@ -92,6 +101,7 @@ Minimum `.env` changes for development:
 
 | Command | Purpose |
 |---|---|
+| `npm run setup:dev` / `npm run dev` | One-time local setup / run API + web app together |
 | `npm run build` | Generate the Prisma client, compile the API to `backend/dist`, type-check and build the SPA to `frontend/dist` |
 | `npm start` | Start the compiled API (`backend/dist/server.js`) |
 | `npm test` | Backend (unit + integration + security) and frontend test suites |
