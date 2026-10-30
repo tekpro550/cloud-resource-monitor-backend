@@ -178,7 +178,7 @@ export function BucketCard({ customerId, usage, onChanged, ownOrganisation = fal
           Documents are stored in <strong>Tekpro platform storage</strong>.
           {m.allowed
             ? ownOrganisation
-              ? " To store them in your own AWS account, a Tekpro Super Admin first connects the account; buckets can then be created here."
+              ? " To store them in your own AWS account, a Super Admin first connects the account; buckets can then be created here."
               : " To store them in the customer's own AWS account, connect it below (Connect customer storage); buckets can then be created here."
             : ""}
         </p>
@@ -295,7 +295,7 @@ export function CustomerStorageTab({ customerId }: { customerId: string }) {
   );
 }
 
-/** Customer Admin: their organisation's storage space and bucket. */
+/** Customer role: their organisation's storage space and bucket. */
 export function OrganisationStoragePage() {
   const user = useCurrentUser();
   const customerId = user.customerId!;

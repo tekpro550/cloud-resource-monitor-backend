@@ -54,7 +54,7 @@ function serializeConnector(c: StorageConnector, documentCount: number) {
  *   POST   /customers/:id/storage-connector/disable  SA - stop new uploads to it
  *   DELETE /customers/:id/storage-connector          SA - only when no documents use it
  *   GET    /storage-connectors/portal-identity       SA - principal for the customer's trust policy
- * (*) when the "Customer Admins can manage their storage bucket" setting is on, own organisation only.
+ * (*) when the "Customers can create and delete their storage bucket" setting is on, own organisation only.
  */
 export function storageConnectorRoutes(s: Services): { customerScoped: Router; global: Router } {
   const customerScoped = Router({ mergeParams: true });
@@ -243,7 +243,7 @@ export function storageConnectorRoutes(s: Services): { customerScoped: Router; g
     const p = principal(req);
     const customer = await s.policy.requireCustomerAccess(p, customerId);
     if (p.role === "CUSTOMER_ADMIN" && !(await s.settings.get()).customerAdminCanManageStorage) {
-      throw new AccessDeniedError(403, "Managing storage buckets is not enabled for Customer Admins", {
+      throw new AccessDeniedError(403, "Managing storage buckets is not enabled for Customer accounts", {
         resourceType: "StorageConnector",
         reason: "customer admin bucket management disabled",
         customerId,

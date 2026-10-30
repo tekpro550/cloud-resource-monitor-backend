@@ -44,7 +44,7 @@ describe("Settings page", () => {
     s.on("GET", /\/settings$/, () => payload());
     renderApp("/settings");
     expect(await screen.findByRole("heading", { name: "Who can do what" })).toBeInTheDocument();
-    expect(screen.getByLabelText(/Customer admins can create and delete their storage bucket/)).toBeChecked();
+    expect(screen.getByLabelText(/Customers can create and delete their storage bucket/)).toBeChecked();
     expect(screen.getByLabelText("Largest file allowed")).toHaveValue(5);
     expect(screen.getByLabelText("Download link valid for")).toHaveValue(5);
     expect(screen.getByLabelText("Keep deleted documents for")).toHaveValue(30);

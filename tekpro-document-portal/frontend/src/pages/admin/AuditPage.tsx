@@ -21,7 +21,7 @@ const ACTION_GROUPS = [
   ["settings.", "Settings"],
 ] as const;
 
-/** Platform audit log (Super Admin) or assigned-customer audit (Tekpro User). */
+/** Platform audit log (Super Admin) or assigned-customer audit (Agent). */
 export function AuditPage() {
   const user = useCurrentUser();
   const [customerId, setCustomerId] = useState("");

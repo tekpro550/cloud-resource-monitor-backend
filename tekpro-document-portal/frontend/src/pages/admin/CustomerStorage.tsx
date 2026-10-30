@@ -317,7 +317,7 @@ export function CustomerStorage({ customerId, onChanged }: { customerId: string;
             <>
               <h3 className="section-title">Optional: let the portal create and delete buckets</h3>
               <p className="muted small">
-                Attach this policy <em>instead of</em> the permissions policy above. It lets Super Admins and the customer's own admins create and delete buckets
+                Attach this policy <em>instead of</em> the permissions policy above. It lets Super Admins and the customer's Customer accounts create and delete buckets
                 named <code>{setup.bucketPrefix}…</code> from the portal (private, encrypted, versioned), and gives document access only under{" "}
                 <code>{connector.prefix}</code> in those buckets.
               </p>

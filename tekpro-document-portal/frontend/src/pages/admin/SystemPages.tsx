@@ -144,23 +144,23 @@ export function StoragePage() {
 
 const PERMISSION_GROUPS: { title: string; items: { key: keyof PortalSettings; label: string; hint: string }[] }[] = [
   {
-    title: "Tekpro team",
+    title: "Agents",
     items: [
-      { key: "staffAuditAccess", label: "Can see activity logs of their customers", hint: "Only for the customers assigned to each staff member." },
+      { key: "staffAuditAccess", label: "Can see activity logs of their assigned customers", hint: "Only for the customers assigned to each Agent." },
       { key: "staffCanDeleteDocuments", label: "Can delete documents", hint: "When off, only Super Admins can delete documents." },
       { key: "staffCanDeleteFolders", label: "Can delete folders", hint: "When off, only Super Admins can delete folders." },
     ],
   },
   {
-    title: "Customer organisations",
+    title: "Customers and Users",
     items: [
-      { key: "customerAdminActivityAccess", label: "Customer admins can see their organisation's activity", hint: "Downloads and sign-ins by people in their own organisation." },
+      { key: "customerAdminActivityAccess", label: "Customers can see their organisation's activity", hint: "Downloads and sign-ins by people in their own organisation." },
       {
         key: "customerAdminCanManageStorage",
-        label: "Customer admins can create and delete their storage bucket",
+        label: "Customers can create and delete their storage bucket",
         hint: "Only for organisations whose documents are kept in their own AWS account.",
       },
-      { key: "customerUserActivityAccess", label: "Customer team members can see their own activity", hint: "Their own downloads and sign-ins." },
+      { key: "customerUserActivityAccess", label: "Users can see their own activity", hint: "Their own downloads and sign-ins." },
     ],
   },
 ];

@@ -14,7 +14,7 @@ Tekpro staff upload documents to **Amazon Lightsail Object Storage**; customer u
 
 | Area | What is implemented |
 |---|---|
-| Roles | Tekpro Super Admin, designated Tekpro User (assigned customers only), Customer Admin (download-only, whole organisation), Customer User (download-only, granted folders) |
+| Roles | **Super Admin** (Tekpro, everything), **Agent** (Tekpro staff, assigned customers only), **Customer** (customer organisation admin: download-only, whole organisation, storage page), **User** (download-only, granted folders). Internally `SUPER_ADMIN`, `TEKPRO_USER`, `CUSTOMER_ADMIN`, `CUSTOMER_USER` |
 | Tenancy | Customer-scoped data model with database-level composite foreign keys that make cross-customer folder/document/permission links impossible |
 | Authentication | Email + password (Argon2id), HttpOnly SameSite=Strict session cookie, DB-backed sessions with idle + absolute expiry, session rotation, CSRF token, account lockout, rate limiting, password reset and invitation links, one-time Super Admin bootstrap CLI |
 | Folders | Nested folders, breadcrumbs, rename, move (cycle-safe, same customer only), recursive delete with typed confirmation, per-folder customer visibility, document counts |

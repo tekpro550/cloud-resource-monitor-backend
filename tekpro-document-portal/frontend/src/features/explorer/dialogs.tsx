@@ -145,7 +145,7 @@ export function DeleteDocumentDialog({ doc, retentionNote, onClose, onDone }: { 
           <p>
             Delete <strong>{doc.displayName}</strong>? Customers will no longer see it.
           </p>
-          <p className="muted small">{retentionNote ?? "Deleted documents can be restored by the Tekpro team until the retention period ends."}</p>
+          <p className="muted small">{retentionNote ?? "Deleted documents can be restored by Tekpro until the retention period ends."}</p>
         </>
       }
     />
@@ -189,7 +189,7 @@ export function DeleteFolderDialog({ folder, onClose, onDone }: { folder: Folder
       {contents && (
         <div className="form">
           <Alert kind="warning" title="This folder is not empty">
-            It contains {contents.subfolders} subfolder(s) and {contents.documents} document(s). They will be deleted and hidden from customers. Documents remain recoverable by the Tekpro team
+            It contains {contents.subfolders} subfolder(s) and {contents.documents} document(s). They will be deleted and hidden from customers. Documents remain recoverable by Tekpro
             until the retention period ends.
           </Alert>
           <Field label={`Type “${folder.name}” to confirm`}>{(id) => <Input id={id} value={confirmName} onChange={(e) => setConfirmName(e.target.value)} autoComplete="off" />}</Field>
@@ -211,7 +211,7 @@ export function FolderAccessDialog({ folder, onClose, onChanged }: { folder: Fol
     <FormModal title={`Customer access: ${folder.name}`} busy={s.busy} error={s.error} submitLabel="Save" onClose={onClose} onSubmit={s.submit} disabled={hidden === !!folder.hiddenFromCustomer}>
       <label className="checkbox">
         <input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} />
-        Hide this folder (and its subfolders) from the whole customer team, including Customer Admins
+        Hide this folder (and its subfolders) from everyone at the customer, including the Customer role
       </label>
       <h3 className="section-title">Customer user grants on this folder</h3>
       {grants.loading ? (
@@ -227,7 +227,7 @@ export function FolderAccessDialog({ folder, onClose, onChanged }: { folder: Fol
           ))}
         </ul>
       ) : (
-        <p className="muted small">No explicit grants. Manage grants from each customer team member's page.</p>
+        <p className="muted small">No explicit grants. Manage grants from each User's page.</p>
       )}
     </FormModal>
   );

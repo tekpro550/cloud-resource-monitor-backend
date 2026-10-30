@@ -32,10 +32,10 @@ export function formatDateTime(value: string | Date | null | undefined): string 
 }
 
 export const ROLE_LABELS = {
-  SUPER_ADMIN: "Tekpro Super Admin",
-  TEKPRO_USER: "Tekpro Team Member",
-  CUSTOMER_ADMIN: "Customer Admin",
-  CUSTOMER_USER: "Customer Team Member",
+  SUPER_ADMIN: "Super Admin",
+  TEKPRO_USER: "Agent",
+  CUSTOMER_ADMIN: "Customer",
+  CUSTOMER_USER: "User",
 } as const;
 
 /** Human-readable labels for audit actions. */

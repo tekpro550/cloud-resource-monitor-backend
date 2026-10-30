@@ -124,7 +124,7 @@ export function UsersPage() {
     <>
       <PageHeader
         title="Users"
-        subtitle="Tekpro team and customer team accounts"
+        subtitle="Super Admins, Agents, Customers and Users"
         actions={
           <Button variant="primary" onClick={() => setCreating(true)}>
             New user
@@ -136,8 +136,8 @@ export function UsersPage() {
           <Input type="search" aria-label="Search users" placeholder="Search by name or email…" value={q} onChange={(e) => (setQ(e.target.value), setPage(1))} />
           <Select aria-label="User type" value={scope} onChange={(e) => (setScope(e.target.value), setPage(1))}>
             <option value="">All users</option>
-            <option value="staff">Tekpro team</option>
-            <option value="customer">Customer teams</option>
+            <option value="staff">Super Admins and Agents</option>
+            <option value="customer">Customers and Users</option>
           </Select>
           <Select aria-label="Status" value={status} onChange={(e) => (setStatus(e.target.value), setPage(1))}>
             <option value="">Any status</option>
@@ -285,7 +285,7 @@ export function UserDetailPage() {
             ) : (
               <EmptyState title="No customers assigned." />
             )}
-            <p className="muted small">Manage assignments from each customer's “Tekpro team” tab.</p>
+            <p className="muted small">Manage assignments from each customer's “Agents” tab.</p>
           </Card>
         )}
         {user.role === "CUSTOMER_USER" && user.customerId && (
@@ -293,7 +293,7 @@ export function UserDetailPage() {
         )}
         {user.role === "CUSTOMER_ADMIN" && (
           <Card title="Folder access">
-            <p>Customer Admins can browse and download every folder of their organisation that is not hidden from the customer.</p>
+            <p>Customer accounts can browse and download every folder of their organisation that is not hidden from the customer.</p>
           </Card>
         )}
       </div>
@@ -410,7 +410,7 @@ function FolderPermissionsCard({
   return (
     <Card title="Folder permissions">
       <p className="muted small">
-        A grant applies to the folder and its subfolders. A nearer grant overrides a broader one, and “No access” blocks the whole subfolder tree. Customer team members are always
+        A grant applies to the folder and its subfolders. A nearer grant overrides a broader one, and “No access” blocks the whole subfolder tree. Users are always
         download-only.
       </p>
       {current.length ? (

@@ -196,8 +196,8 @@ export function CustomerDetailPage() {
       <Tabs<Tab>
         tabs={[
           { id: "overview", label: "Overview" },
-          { id: "staff", label: "Tekpro team" },
-          { id: "users", label: "Customer team" },
+          { id: "staff", label: "Agents" },
+          { id: "users", label: "Customer & Users" },
           { id: "storage", label: "Storage" },
         ]}
         value={tab}
@@ -217,7 +217,7 @@ export function CustomerDetailPage() {
           error={toggleError}
           message={
             deactivate
-              ? "All users of this customer will be signed out immediately and will not be able to sign in. The assigned Tekpro team will lose access. Documents are kept."
+              ? "All users of this customer will be signed out immediately and will not be able to sign in. Assigned Agents will lose access. Documents are kept."
               : "Users of this customer will be able to sign in again."
           }
           onCancel={() => setToggling(false)}
@@ -249,7 +249,7 @@ function CustomerOverview({ id }: { id: string }) {
       <StatTile label="Available documents" value={avail.count} />
       <StatTile label="Storage used" value={formatBytes(avail.bytes)} />
       <StatTile label="Folders" value={s.folders} />
-      <StatTile label="Active customer team members" value={s.activeUsers} />
+      <StatTile label="Active Customer & User accounts" value={s.activeUsers} />
       <StatTile label="Uploaded (24h)" value={formatBytes(s.last24h.bytes)} hint={`${s.last24h.uploads} files`} />
       <StatTile label="Deleted (recoverable)" value={s.documentsByStatus.DELETED?.count ?? 0} />
     </div>
@@ -266,10 +266,10 @@ function CustomerStaff({ id }: { id: string }) {
   const available = (staff.data?.items ?? []).filter((u) => !assignedIds.has(u.id));
 
   return (
-    <Card title="Tekpro team for this customer">
-      <p className="muted">Tekpro team members assigned here can upload and manage this customer's folders and documents. They cannot see other customers.</p>
+    <Card title="Agents for this customer">
+      <p className="muted">Agents assigned here can upload and manage this customer's folders and documents. They cannot see other customers.</p>
       <div className="inline-form">
-        <Select aria-label="Tekpro team member to assign" value={selected} onChange={(e) => setSelected(e.target.value)}>
+        <Select aria-label="Agent to assign" value={selected} onChange={(e) => setSelected(e.target.value)}>
           <option value="">Select a Tekpro user…</option>
           {available.map((u) => (
             <option key={u.id} value={u.id}>
@@ -314,7 +314,7 @@ function CustomerStaff({ id }: { id: string }) {
           ))}
         </ul>
       ) : (
-        <EmptyState title="No Tekpro team members assigned yet." />
+        <EmptyState title="No Agents assigned yet." />
       )}
       {removing && (
         <ConfirmDialog
@@ -339,10 +339,10 @@ function CustomerUsers({ customer }: { customer: Customer }) {
   const [creating, setCreating] = useState(false);
   return (
     <Card
-      title={`${customer.name} team`}
+      title={`${customer.name}: Customer and User accounts`}
       actions={
         <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
-          Add team member
+          Add Customer or User
         </Button>
       }
     >
@@ -388,7 +388,7 @@ function CustomerUsers({ customer }: { customer: Customer }) {
           </table>
         </div>
       ) : (
-        <EmptyState title="No team members for this customer yet." />
+        <EmptyState title="No Customer or User accounts for this customer yet." />
       )}
       {creating && <UserFormDialog fixedCustomer={customer} onClose={() => setCreating(false)} onCreated={() => users.reload()} />}
     </Card>

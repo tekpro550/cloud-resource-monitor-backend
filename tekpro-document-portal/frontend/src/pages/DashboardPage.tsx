@@ -16,7 +16,7 @@ function SuperAdminDashboard() {
   const stats = useAsync(() => statsApi.overview(), []);
   return (
     <>
-      <PageHeader title="Platform overview" subtitle="Tekpro Super Admin" />
+      <PageHeader title="Platform overview" subtitle="Super Admin" />
       {stats.loading ? (
         <Spinner />
       ) : stats.error ? (
@@ -124,7 +124,7 @@ function StaffDashboard() {
         </div>
       ) : (
         <EmptyState title="No customers assigned">
-          <p>A Tekpro Super Admin needs to assign customers to your account before you can manage documents.</p>
+          <p>A Super Admin needs to assign customers to your account before you can manage documents.</p>
         </EmptyState>
       )}
       {activity.data && (
