@@ -1,0 +1,306 @@
+// Tekpro Document Portal - PostgreSQL schema.
+//
+// Tenant integrity is enforced in the database, not only in application code:
+//  - Folder.parent uses a composite foreign key (parentFolderId, customerId) so a
+//    child folder can only reference a parent belonging to the same customer.
+//  - Document.folder uses a composite foreign key (folderId, customerId).
+//  - CustomerUserFolderPermission references both the user and the folder through
+//    (id, customerId) so a grant can never cross a customer boundary.
+// Additional constraints that Prisma cannot express (CHECK constraints, partial
+// unique indexes and the audit-log immutability trigger) live in the SQL migrations.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  TEKPRO_USER
+  CUSTOMER_ADMIN
+  CUSTOMER_USER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum FolderPermissionLevel {
+  NONE
+  VIEW
+  DOWNLOAD
+}
+
+enum DocumentStatus {
+  PENDING_UPLOAD
+  AVAILABLE
+  UPLOAD_FAILED
+  DELETED
+  PURGED
+  MISSING_OBJECT
+}
+
+enum UploadMode {
+  SINGLE
+  MULTIPART
+}
+
+enum UploadSessionStatus {
+  INITIATED
+  COMPLETING
+  COMPLETED
+  ABORTED
+  EXPIRED
+  FAILED
+}
+
+enum AuditOutcome {
+  SUCCESS
+  FAILURE
+  DENIED
+}
+
+enum PasswordTokenPurpose {
+  RESET
+  INVITE
+}
+
+model User {
+  id                  String     @id @default(uuid()) @db.Uuid
+  email               String     @unique
+  passwordHash        String?
+  fullName            String
+  role                Role
+  status              UserStatus @default(ACTIVE)
+  customerId          String?    @db.Uuid
+  failedLoginCount    Int        @default(0)
+  lockedUntil         DateTime?
+  passwordChangedAt   DateTime?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  lastLoginAt         DateTime?
+
+  customer            Customer?  @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  sessions            Session[]
+  passwordTokens      PasswordToken[]
+  assignments         TekproUserCustomerAssignment[] @relation("AssignmentUser")
+  assignmentsGranted  TekproUserCustomerAssignment[] @relation("AssignmentGrantor")
+  folderPermissions   CustomerUserFolderPermission[] @relation("PermissionUser")
+  permissionsGranted  CustomerUserFolderPermission[] @relation("PermissionGrantor")
+  foldersCreated      Folder[]
+  documentsUploaded   Document[]
+  uploadSessions      UploadSession[]
+  auditEvents         AuditLog[]
+
+  @@unique([id, customerId])
+  @@index([customerId, role])
+  @@index([role, status])
+}
+
+model Customer {
+  id           String         @id @default(uuid()) @db.Uuid
+  name         String
+  customerCode String         @unique
+  status       CustomerStatus @default(ACTIVE)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  users        User[]
+  assignments  TekproUserCustomerAssignment[]
+  folders      Folder[]
+  documents    Document[]
+  uploads      UploadSession[]
+  auditEvents  AuditLog[]
+
+  @@index([status])
+}
+
+model TekproUserCustomerAssignment {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @db.Uuid
+  customerId       String   @db.Uuid
+  assignedByUserId String?  @db.Uuid
+  createdAt        DateTime @default(now())
+
+  user       User     @relation("AssignmentUser", fields: [userId], references: [id], onDelete: Cascade)
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  assignedBy User?    @relation("AssignmentGrantor", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, customerId])
+  @@index([customerId])
+}
+
+model Folder {
+  id                 String    @id @default(uuid()) @db.Uuid
+  customerId         String    @db.Uuid
+  parentFolderId     String?   @db.Uuid
+  name               String
+  hiddenFromCustomer Boolean   @default(false)
+  createdByUserId    String?   @db.Uuid
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  parent      Folder?  @relation("FolderTree", fields: [parentFolderId, customerId], references: [id, customerId], onDelete: Restrict, onUpdate: Restrict)
+  children    Folder[] @relation("FolderTree")
+  createdBy   User?    @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  documents   Document[]
+  permissions CustomerUserFolderPermission[]
+  uploads     UploadSession[]
+
+  @@unique([id, customerId])
+  @@index([customerId, parentFolderId])
+  @@index([customerId, deletedAt])
+}
+
+model Document {
+  id               String         @id @default(uuid()) @db.Uuid
+  customerId       String         @db.Uuid
+  folderId         String         @db.Uuid
+  displayName      String
+  extension        String         @default("")
+  objectKey        String         @unique
+  mimeType         String
+  sizeBytes        BigInt
+  checksum         String?
+  storageEtag      String?
+  description      String?
+  status           DocumentStatus @default(PENDING_UPLOAD)
+  uploadedByUserId String?        @db.Uuid
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  availableAt      DateTime?
+  deletedAt        DateTime?
+  deletedByUserId  String?        @db.Uuid
+  purgeAfter       DateTime?
+  purgeAttempts    Int            @default(0)
+  purgedAt         DateTime?
+
+  customer   Customer       @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  folder     Folder         @relation(fields: [folderId, customerId], references: [id, customerId], onDelete: Restrict, onUpdate: Restrict)
+  uploadedBy User?          @relation(fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  upload     UploadSession?
+
+  @@index([customerId, folderId, status])
+  @@index([customerId, status, createdAt])
+  @@index([customerId, status, displayName])
+  @@index([status, purgeAfter])
+}
+
+model CustomerUserFolderPermission {
+  id              String                @id @default(uuid()) @db.Uuid
+  customerId      String                @db.Uuid
+  userId          String                @db.Uuid
+  folderId        String                @db.Uuid
+  permission      FolderPermissionLevel
+  grantedByUserId String?               @db.Uuid
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  user      User   @relation("PermissionUser", fields: [userId, customerId], references: [id, customerId], onDelete: Cascade, onUpdate: Restrict)
+  folder    Folder @relation(fields: [folderId, customerId], references: [id, customerId], onDelete: Cascade, onUpdate: Restrict)
+  grantedBy User?  @relation("PermissionGrantor", fields: [grantedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, folderId])
+  @@index([folderId])
+}
+
+model UploadSession {
+  id               String              @id @default(uuid()) @db.Uuid
+  documentId       String              @unique @db.Uuid
+  customerId       String              @db.Uuid
+  folderId         String              @db.Uuid
+  createdByUserId  String?             @db.Uuid
+  mode             UploadMode
+  storageUploadId  String?
+  expectedSize     BigInt
+  partSize         BigInt?
+  partCount        Int?
+  status           UploadSessionStatus @default(INITIATED)
+  failureReason    String?
+  expiresAt        DateTime
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  completedAt      DateTime?
+
+  document  Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  customer  Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  folder    Folder   @relation(fields: [folderId], references: [id], onDelete: Restrict)
+  createdBy User?    @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, expiresAt])
+  @@index([customerId, status])
+}
+
+model Session {
+  id         String    @id @default(uuid()) @db.Uuid
+  tokenHash  String    @unique
+  csrfToken  String
+  userId     String    @db.Uuid
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  ipAddress  String?
+  userAgent  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordToken {
+  id        String               @id @default(uuid()) @db.Uuid
+  tokenHash String               @unique
+  userId    String               @db.Uuid
+  purpose   PasswordTokenPurpose
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime             @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model SystemSetting {
+  key             String   @id
+  value           Json
+  updatedAt       DateTime @updatedAt
+  updatedByUserId String?  @db.Uuid
+}
+
+model AuditLog {
+  id          String       @id @default(uuid()) @db.Uuid
+  actorUserId String?      @db.Uuid
+  customerId  String?      @db.Uuid
+  action      String
+  resourceType String
+  resourceId  String?
+  outcome     AuditOutcome
+  requestId   String?
+  ipAddress   String?
+  metadata    Json?
+  createdAt   DateTime     @default(now())
+
+  actor    User?     @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@index([createdAt])
+  @@index([customerId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
+}

@@ -61,3 +61,9 @@ Example Response:
 1. Install Azure Functions Core Tools
 2. Create a `local.settings.json` file with your configuration
 3. Run `func start` to start the function app locally 
+## Tekpro Document Portal
+
+The [`tekpro-document-portal/`](tekpro-document-portal/) directory contains a separate, self-contained
+application (Node.js/TypeScript API, React frontend, PostgreSQL, Amazon Lightsail Object Storage) for
+secure customer document distribution. It does not change the Azure Functions code above. See
+[`tekpro-document-portal/README.md`](tekpro-document-portal/README.md).

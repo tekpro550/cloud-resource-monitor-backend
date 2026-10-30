@@ -1,0 +1,31 @@
+# systemd unit for the Tekpro Document Portal API (serves the built SPA too).
+# Install: sudo cp deploy/tekpro-portal.service /etc/systemd/system/ && sudo systemctl daemon-reload
+[Unit]
+Description=Tekpro Document Portal
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tekpro
+Group=tekpro
+WorkingDirectory=/opt/tekpro-document-portal/current/backend
+# Secrets live in a root-owned file with mode 0640 (owner root, group tekpro).
+EnvironmentFile=/etc/tekpro-portal/portal.env
+ExecStart=/usr/bin/node dist/server.js
+Restart=on-failure
+RestartSec=5
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,14 @@
+# Maintenance run: expire abandoned uploads, purge deleted documents past retention, prune sessions.
+[Unit]
+Description=Tekpro Document Portal maintenance
+
+[Service]
+Type=oneshot
+User=tekpro
+WorkingDirectory=/opt/tekpro-document-portal/current/backend
+EnvironmentFile=/etc/tekpro-portal/portal.env
+ExecStart=/usr/bin/node dist/cli/runJobs.js maintenance
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true

@@ -1,0 +1,41 @@
+{
+  "name": "tekpro-document-portal",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Tekpro Document Portal - secure multi-tenant document distribution",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev:backend": "npm run dev -w backend",
+    "dev:frontend": "npm run dev -w frontend",
+    "build": "npm run build -w backend && npm run build -w frontend",
+    "typecheck": "npm run typecheck -w backend && npm run typecheck -w frontend",
+    "lint": "eslint .",
+    "test": "npm run test -w backend && npm run test -w frontend",
+    "test:backend": "npm run test -w backend",
+    "test:frontend": "npm run test -w frontend",
+    "db:migrate": "npm run db:migrate:deploy -w backend",
+    "bootstrap:superadmin": "npm run bootstrap:superadmin -w backend --",
+    "storage:check": "npm run storage:check -w backend --",
+    "jobs": "npm run jobs -w backend --",
+    "start": "npm run start -w backend",
+    "test:storage-integration": "npm run test:storage-integration -w backend"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.1"
+  },
+  "type": "module"
+}
