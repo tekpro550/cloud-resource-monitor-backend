@@ -124,7 +124,7 @@ export function UsersPage() {
     <>
       <PageHeader
         title="Users"
-        subtitle="Tekpro staff and customer user accounts"
+        subtitle="Tekpro team and customer team accounts"
         actions={
           <Button variant="primary" onClick={() => setCreating(true)}>
             New user
@@ -136,8 +136,8 @@ export function UsersPage() {
           <Input type="search" aria-label="Search users" placeholder="Search by name or email…" value={q} onChange={(e) => (setQ(e.target.value), setPage(1))} />
           <Select aria-label="User type" value={scope} onChange={(e) => (setScope(e.target.value), setPage(1))}>
             <option value="">All users</option>
-            <option value="staff">Tekpro staff</option>
-            <option value="customer">Customer users</option>
+            <option value="staff">Tekpro team</option>
+            <option value="customer">Customer teams</option>
           </Select>
           <Select aria-label="Status" value={status} onChange={(e) => (setStatus(e.target.value), setPage(1))}>
             <option value="">Any status</option>
@@ -285,7 +285,7 @@ export function UserDetailPage() {
             ) : (
               <EmptyState title="No customers assigned." />
             )}
-            <p className="muted small">Manage assignments from each customer's “Tekpro staff” tab.</p>
+            <p className="muted small">Manage assignments from each customer's “Tekpro team” tab.</p>
           </Card>
         )}
         {user.role === "CUSTOMER_USER" && user.customerId && (
@@ -410,7 +410,7 @@ function FolderPermissionsCard({
   return (
     <Card title="Folder permissions">
       <p className="muted small">
-        A grant applies to the folder and its subfolders. A nearer grant overrides a broader one, and “No access” blocks the whole subfolder tree. Customer users are always
+        A grant applies to the folder and its subfolders. A nearer grant overrides a broader one, and “No access” blocks the whole subfolder tree. Customer team members are always
         download-only.
       </p>
       {current.length ? (

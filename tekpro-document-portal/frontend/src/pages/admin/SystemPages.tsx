@@ -144,7 +144,7 @@ export function StoragePage() {
 
 const PERMISSION_GROUPS: { title: string; items: { key: keyof PortalSettings; label: string; hint: string }[] }[] = [
   {
-    title: "Tekpro staff",
+    title: "Tekpro team",
     items: [
       { key: "staffAuditAccess", label: "Can see activity logs of their customers", hint: "Only for the customers assigned to each staff member." },
       { key: "staffCanDeleteDocuments", label: "Can delete documents", hint: "When off, only Super Admins can delete documents." },
@@ -160,7 +160,7 @@ const PERMISSION_GROUPS: { title: string; items: { key: keyof PortalSettings; la
         label: "Customer admins can create and delete their storage bucket",
         hint: "Only for organisations whose documents are kept in their own AWS account.",
       },
-      { key: "customerUserActivityAccess", label: "Customer users can see their own activity", hint: "Their own downloads and sign-ins." },
+      { key: "customerUserActivityAccess", label: "Customer team members can see their own activity", hint: "Their own downloads and sign-ins." },
     ],
   },
 ];

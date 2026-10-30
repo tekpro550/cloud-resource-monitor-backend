@@ -14,7 +14,7 @@ key-bound requests), API ↔ PostgreSQL / storage (trusted, credentialled).
 
 ## 2. Roles and permissions
 
-| Function | Super Admin | Tekpro User | Customer Admin | Customer User |
+| Function | Super Admin | Tekpro User (shown as "Tekpro Team Member") | Customer Admin | Customer User (shown as "Customer Team Member") |
 |---|---|---|---|---|
 | Manage customers, staff, users, assignments, settings | ✔ | ✘ | ✘ | ✘ |
 | Browse customers | all | assigned | own | own |

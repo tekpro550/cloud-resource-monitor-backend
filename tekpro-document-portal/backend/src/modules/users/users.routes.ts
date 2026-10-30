@@ -295,7 +295,7 @@ export function usersRoutes(s: Services): Router {
 
   const loadCustomerUserAndFolder = async (userId: string, folderId: string) => {
     const user = await loadUser(userId);
-    if (user.role !== "CUSTOMER_USER") throw badRequest("Folder permissions apply only to Customer Users");
+    if (user.role !== "CUSTOMER_USER") throw badRequest("Folder permissions apply only to customer team members");
     const folder = await s.prisma.folder.findUnique({ where: { id: folderId } });
     if (!folder || folder.deletedAt || folder.customerId !== user.customerId) {
       throw badRequest("The folder does not belong to this user's customer");

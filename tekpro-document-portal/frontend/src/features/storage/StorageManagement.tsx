@@ -109,7 +109,7 @@ export function StorageUsageCard({ customerId, usage, canEditLimit, onChanged }:
 }
 
 /** Where documents are stored, and creating/deleting the customer's own bucket. */
-export function BucketCard({ customerId, usage, onChanged }: { customerId: string; usage: StorageUsage; onChanged: () => void }) {
+export function BucketCard({ customerId, usage, onChanged, ownOrganisation = false }: { customerId: string; usage: StorageUsage; onChanged: () => void; ownOrganisation?: boolean }) {
   const { location, bucketManagement: m } = usage;
   const [creating, setCreating] = useState(false);
   const [suffix, setSuffix] = useState("");
@@ -176,7 +176,11 @@ export function BucketCard({ customerId, usage, onChanged }: { customerId: strin
       {location.mode === "PLATFORM" ? (
         <p>
           Documents are stored in <strong>Tekpro platform storage</strong>.
-          {m.allowed ? " To store them in your own AWS account, a Tekpro Super Admin first connects the account; buckets can then be created here." : ""}
+          {m.allowed
+            ? ownOrganisation
+              ? " To store them in your own AWS account, a Tekpro Super Admin first connects the account; buckets can then be created here."
+              : " To store them in the customer's own AWS account, connect it below (Connect customer storage); buckets can then be created here."
+            : ""}
         </p>
       ) : (
         <dl className="details">
@@ -302,7 +306,7 @@ export function OrganisationStoragePage() {
     <>
       <PageHeader title="Storage" subtitle="Space used by your organisation's documents, and where they are stored" />
       <StorageUsageCard customerId={customerId} usage={usage.data!} canEditLimit={false} onChanged={usage.reload} />
-      <BucketCard customerId={customerId} usage={usage.data!} onChanged={usage.reload} />
+      <BucketCard customerId={customerId} usage={usage.data!} onChanged={usage.reload} ownOrganisation />
     </>
   );
 }

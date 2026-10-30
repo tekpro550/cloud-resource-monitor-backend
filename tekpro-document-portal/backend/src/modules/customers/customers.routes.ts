@@ -221,7 +221,7 @@ export function customersRoutes(s: Services): Router {
     const p = principal(req);
     await s.policy.requireCustomerAccess(p, customerId);
     const user = await s.prisma.user.findUnique({ where: { id: userId } });
-    if (!user || user.role !== "TEKPRO_USER") throw badRequest("Only designated Tekpro Users can be assigned to customers");
+    if (!user || user.role !== "TEKPRO_USER") throw badRequest("Only Tekpro team members can be assigned to customers");
     if (user.status !== "ACTIVE") throw badRequest("The user is not active");
     const existing = await s.prisma.tekproUserCustomerAssignment.findUnique({ where: { userId_customerId: { userId, customerId } } });
     if (existing) throw conflict("The user is already assigned to this customer", "DUPLICATE");
