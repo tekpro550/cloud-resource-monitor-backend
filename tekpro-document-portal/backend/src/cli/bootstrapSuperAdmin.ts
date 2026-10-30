@@ -9,6 +9,7 @@
  * Super Admins are created from the administration UI. It never runs on
  * application startup.
  */
+import { createInterface } from "node:readline/promises";
 import { parseArgs } from "node:util";
 import { PrismaClient } from "@prisma/client";
 import { loadConfigOrExit } from "../bootstrap.js";
@@ -47,8 +48,18 @@ async function promptHidden(question: string): Promise<string> {
 
 async function main() {
   const { values } = parseArgs({ options: { email: { type: "string" }, name: { type: "string" } } });
-  const email = values.email?.trim().toLowerCase();
-  const fullName = values.name?.trim();
+  // Missing values are asked for interactively (e.g. `az containerapp exec` into the container).
+  const ask = async (question: string) => {
+    if (!process.stdin.isTTY) return undefined;
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      return (await rl.question(question)).trim();
+    } finally {
+      rl.close();
+    }
+  };
+  const email = (values.email ?? (await ask("Email: ")))?.trim().toLowerCase();
+  const fullName = (values.name ?? (await ask("Full name: ")))?.trim();
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !fullName) {
     throw new Error('Usage: bootstrap:superadmin -- --email <email> --name "<full name>"');
   }

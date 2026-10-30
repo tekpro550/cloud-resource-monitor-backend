@@ -134,7 +134,9 @@ try {
   const user = await userCtx.newPage();
 
   await step("Customer user sets a password from the invitation and signs in (mobile viewport)", async () => {
-    await user.goto(inviteLink);
+    // Open the link on the site under test (identical to APP_BASE_URL in a real deployment).
+    const link = new URL(inviteLink);
+    await user.goto(`${BASE}${link.pathname}${link.search}`);
     await user.getByLabel("New password", { exact: true }).fill(userPassword);
     await user.getByLabel("Confirm new password").fill(userPassword);
     await user.getByRole("button", { name: "Save password" }).click();

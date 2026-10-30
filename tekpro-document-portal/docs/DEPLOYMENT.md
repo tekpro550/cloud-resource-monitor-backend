@@ -1,5 +1,9 @@
 # Deployment Guide
 
+> **Container option:** to run the portal as a Docker image on Azure Container Apps (with Azure
+> Database for PostgreSQL), follow [AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md) instead of sections 3,
+> 12 and 13 below. Storage, CORS, backup and security guidance below still applies.
+
 The portal has three separately managed components. Object storage hosts **only file bytes**; it
 cannot run the API or the database.
 

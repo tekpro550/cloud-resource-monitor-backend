@@ -8,7 +8,7 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ["backend/**/*.ts", "tests/e2e/**/*.mjs", "scripts/**/*.mjs"],
+    files: ["backend/**/*.ts", "tests/e2e/**/*.mjs", "scripts/**/*.mjs", "docker/**/*.mjs"],
     languageOptions: { globals: globals.node },
   },
   {

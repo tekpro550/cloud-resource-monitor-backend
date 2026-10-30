@@ -50,6 +50,8 @@ export function createApp(ctx: AppContext): { app: Express; services: Services }
       serializers: {
         // Log the path only: query strings may carry reset tokens.
         req: (req: { id: string; method: string; url: string }) => ({ id: req.id, method: req.method, path: req.url?.split("?")[0] }),
+        // Status only: response headers are noise and add log-ingestion cost.
+        res: (res: { statusCode: number }) => ({ statusCode: res.statusCode }),
       },
     }),
   );

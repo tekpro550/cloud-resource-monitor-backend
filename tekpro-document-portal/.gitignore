@@ -9,3 +9,6 @@ coverage/
 *.tsbuildinfo
 test-results/
 playwright-report/
+
+# Azure deployment settings (contain secrets)
+deploy/azure/azure.env
